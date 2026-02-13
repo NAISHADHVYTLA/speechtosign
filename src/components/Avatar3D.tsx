@@ -137,7 +137,7 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
 
   useFrame((state, delta) => {
     if (!bones || !initialized.current) return;
-    const speed = 5;
+    const speed = 7;
     const c = current.current;
 
     // Smooth interpolate all values
@@ -175,16 +175,15 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
     const rArmInit = getInit("rightUpperArm");
     if (bones.rightUpperArm && rArmInit) {
       // armAngle: 0=down by side, 1=shoulder height (T-pose), 1.5=above head
-      // lowering from T-pose = rotating around world Z axis (positive = clockwise = arm down for right side)
-      const lowerAngle = (1 - c.rightArmAngle * 0.65) * 1.2; // radians to lower
-      const forwardAngle = -c.rightArmForward * 0.6;
+      // T-pose → down needs ~π/2 rotation; above head goes negative
+      const lowerAngle = (1 - c.rightArmAngle) * 1.5; // 0→1.5rad (fully down), 1→0 (T-pose)
+      const forwardAngle = -c.rightArmForward * 0.8;
 
-      // Start from bind pose
       tempEuler.set(
         rArmInit.x + forwardAngle,
-        rArmInit.y - c.rightArmSpread * 0.3,
+        rArmInit.y - c.rightArmSpread * 0.4,
         rArmInit.z + lowerAngle,
-        'ZYX' // apply Z first (lower arm), then Y (spread), then X (forward)
+        'ZYX'
       );
       bones.rightUpperArm.quaternion.setFromEuler(tempEuler);
     }
@@ -204,12 +203,12 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
     // ── LEFT ARM ──
     const lArmInit = getInit("leftUpperArm");
     if (bones.leftUpperArm && lArmInit) {
-      const lowerAngle = (1 - c.leftArmAngle * 0.65) * 1.2;
-      const forwardAngle = -c.leftArmForward * 0.6;
+      const lowerAngle = (1 - c.leftArmAngle) * 1.5;
+      const forwardAngle = -c.leftArmForward * 0.8;
 
       tempEuler.set(
         lArmInit.x + forwardAngle,
-        lArmInit.y + c.leftArmSpread * 0.3,
+        lArmInit.y + c.leftArmSpread * 0.4,
         lArmInit.z - lowerAngle,
         'ZYX'
       );
