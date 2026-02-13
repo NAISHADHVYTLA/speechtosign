@@ -51,6 +51,8 @@ export default function SignAnimator({ words, currentWordIndex, isActive }: Sign
         // Return to rest after last letter
         const restT = setTimeout(() => {
           setCurrentPose(null);
+          setCurrentLabel("");
+          setSignDescription("");
         }, totalPoses * 600 + 400);
         timeoutRefs.current.push(restT);
       } else {
@@ -63,6 +65,8 @@ export default function SignAnimator({ words, currentWordIndex, isActive }: Sign
         // Return to rest after last pose
         const restT = setTimeout(() => {
           setCurrentPose(null);
+          setCurrentLabel("");
+          setSignDescription("");
         }, totalPoses * 500 + 400);
         timeoutRefs.current.push(restT);
       }
