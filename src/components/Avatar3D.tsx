@@ -174,14 +174,16 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
     // ── RIGHT ARM ──
     const rArmInit = getInit("rightUpperArm");
     if (bones.rightUpperArm && rArmInit) {
-      // armAngle: 0=down at sides, 1=shoulder height, >1=above shoulder
-      const armClamped = Math.max(0, Math.min(c.rightArmAngle, 1.3));
-      const lowerAngle = (1 - armClamped) * 1.2;
-      const forwardAngle = c.rightArmForward * 0.5;
+      // armAngle: 0=down at sides, 1=shoulder height
+      // Keep arm movements conservative — max shoulder height
+      const armClamped = Math.max(0, Math.min(c.rightArmAngle, 0.9));
+      const lowerAngle = (1 - armClamped) * 1.0;
+      // Forward brings arm in front of body — keep very subtle
+      const forwardAngle = c.rightArmForward * 0.15;
 
       tempEuler.set(
         rArmInit.x - forwardAngle,
-        rArmInit.y - c.rightArmSpread * 0.4,
+        rArmInit.y - c.rightArmSpread * 0.15,
         rArmInit.z + lowerAngle,
         'ZYX'
       );
@@ -189,27 +191,28 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
     }
     const rForeInit = getInit("rightLowerArm");
     if (bones.rightLowerArm && rForeInit) {
+      // Forearm bend — elbow curl. Keep moderate so elbow looks natural
       bones.rightLowerArm.rotation.set(
         rForeInit.x,
-        rForeInit.y - c.rightForearmBend * 1.5,
+        rForeInit.y - c.rightForearmBend * 0.9,
         rForeInit.z
       );
     }
     const rHandInit = getInit("rightHand");
     if (bones.rightHand && rHandInit) {
-      bones.rightHand.rotation.x = rHandInit.x + c.rightWristTilt * 0.5;
+      bones.rightHand.rotation.x = rHandInit.x + c.rightWristTilt * 0.3;
     }
 
     // ── LEFT ARM ──
     const lArmInit = getInit("leftUpperArm");
     if (bones.leftUpperArm && lArmInit) {
-      const armClamped = Math.max(0, Math.min(c.leftArmAngle, 1.3));
-      const lowerAngle = (1 - armClamped) * 1.2;
-      const forwardAngle = c.leftArmForward * 0.5;
+      const armClamped = Math.max(0, Math.min(c.leftArmAngle, 0.9));
+      const lowerAngle = (1 - armClamped) * 1.0;
+      const forwardAngle = c.leftArmForward * 0.15;
 
       tempEuler.set(
         lArmInit.x - forwardAngle,
-        lArmInit.y + c.leftArmSpread * 0.4,
+        lArmInit.y + c.leftArmSpread * 0.15,
         lArmInit.z - lowerAngle,
         'ZYX'
       );
@@ -219,13 +222,13 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
     if (bones.leftLowerArm && lForeInit) {
       bones.leftLowerArm.rotation.set(
         lForeInit.x,
-        lForeInit.y + c.leftForearmBend * 1.5,
+        lForeInit.y + c.leftForearmBend * 0.9,
         lForeInit.z
       );
     }
     const lHandInit = getInit("leftHand");
     if (bones.leftHand && lHandInit) {
-      bones.leftHand.rotation.x = lHandInit.x + c.leftWristTilt * 0.5;
+      bones.leftHand.rotation.x = lHandInit.x + c.leftWristTilt * 0.3;
     }
 
     // ── FINGERS — curl based on handPose ──
@@ -278,7 +281,7 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
   });
 
   return (
-    <group ref={groupRef} position={[0, -0.85, 0]} scale={1}>
+    <group ref={groupRef} position={[0, -1.0, 0]} scale={1}>
       <primitive object={clonedScene} />
     </group>
   );
@@ -296,7 +299,7 @@ export default function Avatar3D({ pose, label }: Avatar3DProps) {
   return (
     <div className="relative w-full h-full">
       <Canvas
-        camera={{ position: [0, 0.5, 3], fov: 30 }}
+        camera={{ position: [0, 0.3, 4], fov: 30 }}
         dpr={[1, 2]}
         gl={{ antialias: true, alpha: true }}
         style={{ background: "transparent" }}
