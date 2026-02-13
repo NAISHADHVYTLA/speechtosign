@@ -476,6 +476,110 @@ export const COMMON_WORDS: Record<string, WordSign> = {
       { ...REST_POSE, rightArmAngle: 0.8, rightArmForward: 0.5, rightForearmBend: 0.6, rightHandPose: 0.9 },
     ],
   },
+  are: {
+    type: "gesture", label: "ARE",
+    description: "R-hand moves forward from lips",
+    poses: [
+      { ...REST_POSE, rightArmAngle: 0.8, rightArmForward: 0.3, rightForearmBend: 0.7, rightHandPose: 0.2, mouthOpen: 0.2 },
+      { ...REST_POSE, rightArmAngle: 0.7, rightArmForward: 0.7, rightForearmBend: 0.3, rightHandPose: 0.2 },
+    ],
+  },
+  is: {
+    type: "gesture", label: "IS",
+    description: "Pinky from chin forward",
+    poses: [
+      { ...REST_POSE, rightArmAngle: 0.8, rightArmForward: 0.3, rightForearmBend: 0.7, rightHandPose: 0.85, mouthOpen: 0.1 },
+      { ...REST_POSE, rightArmAngle: 0.6, rightArmForward: 0.6, rightForearmBend: 0.4, rightHandPose: 0.85 },
+    ],
+  },
+  my: {
+    type: "gesture", label: "MY",
+    description: "Flat hand on chest",
+    poses: [
+      { ...REST_POSE, rightArmAngle: 0.4, rightArmForward: 0.2, rightForearmBend: 0.6, rightHandPose: 0, rightWristTilt: 0.2 },
+    ],
+  },
+  your: {
+    type: "gesture", label: "YOUR",
+    description: "Flat hand pushes toward person",
+    poses: [
+      { ...REST_POSE, rightArmAngle: 0.6, rightArmForward: 0.7, rightForearmBend: 0.2, rightHandPose: 0, eyebrowRaise: 0.2 },
+    ],
+  },
+  we: {
+    type: "gesture", label: "WE",
+    description: "Index finger circles between self and others",
+    poses: [
+      { ...REST_POSE, rightArmAngle: 0.5, rightArmForward: 0.3, rightForearmBend: 0.6, rightHandPose: 0.2, rightArmSpread: 0.2 },
+      { ...REST_POSE, rightArmAngle: 0.5, rightArmForward: 0.3, rightForearmBend: 0.6, rightHandPose: 0.2, rightArmSpread: -0.2 },
+    ],
+  },
+  they: {
+    type: "gesture", label: "THEY",
+    description: "Point to the side and sweep",
+    poses: [
+      { ...REST_POSE, rightArmAngle: 0.6, rightArmForward: 0.6, rightForearmBend: 0.2, rightHandPose: 0.2, rightArmSpread: -0.2 },
+      { ...REST_POSE, rightArmAngle: 0.6, rightArmForward: 0.6, rightForearmBend: 0.2, rightHandPose: 0.2, rightArmSpread: 0.3 },
+    ],
+  },
+  have: {
+    type: "gesture", label: "HAVE",
+    description: "Bent hands touch chest",
+    poses: [
+      { ...REST_POSE, rightArmAngle: 0.5, rightArmForward: 0.4, rightForearmBend: 0.5, rightHandPose: 0.5, leftArmAngle: 0.5, leftArmForward: 0.4, leftForearmBend: 0.5, leftHandPose: 0.5 },
+      { ...REST_POSE, rightArmAngle: 0.4, rightArmForward: 0.2, rightForearmBend: 0.6, rightHandPose: 0.5, leftArmAngle: 0.4, leftArmForward: 0.2, leftForearmBend: 0.6, leftHandPose: 0.5 },
+    ],
+  },
+  not: {
+    type: "gesture", label: "NOT",
+    description: "Thumb flicks out from under chin",
+    poses: [
+      { ...REST_POSE, rightArmAngle: 0.7, rightArmForward: 0.3, rightForearmBend: 0.7, rightHandPose: 0.9, headNod: -0.1 },
+      { ...REST_POSE, rightArmAngle: 0.7, rightArmForward: 0.6, rightForearmBend: 0.4, rightHandPose: 0, headNod: -0.2 },
+    ],
+  },
+  do: {
+    type: "gesture", label: "DO",
+    description: "C-hands move side to side",
+    poses: [
+      { ...REST_POSE, rightArmAngle: 0.5, rightArmForward: 0.5, rightForearmBend: 0.4, rightHandPose: 0.5, leftArmAngle: 0.5, leftArmForward: 0.5, leftForearmBend: 0.4, leftHandPose: 0.5, rightArmSpread: -0.2 },
+      { ...REST_POSE, rightArmAngle: 0.5, rightArmForward: 0.5, rightForearmBend: 0.4, rightHandPose: 0.5, leftArmAngle: 0.5, leftArmForward: 0.5, leftForearmBend: 0.4, leftHandPose: 0.5, rightArmSpread: 0.2 },
+    ],
+  },
+  live: {
+    type: "gesture", label: "LIVE",
+    description: "L-hands move up chest",
+    poses: [
+      { ...REST_POSE, rightArmAngle: 0.3, rightArmForward: 0.3, rightForearmBend: 0.5, rightHandPose: 0.1, leftArmAngle: 0.3, leftArmForward: 0.3, leftForearmBend: 0.5, leftHandPose: 0.1 },
+      { ...REST_POSE, rightArmAngle: 0.6, rightArmForward: 0.3, rightForearmBend: 0.5, rightHandPose: 0.1, leftArmAngle: 0.6, leftArmForward: 0.3, leftForearmBend: 0.5, leftHandPose: 0.1 },
+    ],
+  },
+  welcome: {
+    type: "gesture", label: "WELCOME",
+    description: "Open hand sweeps inward",
+    poses: [
+      { ...REST_POSE, rightArmAngle: 0.7, rightArmForward: 0.7, rightArmSpread: 0.3, rightForearmBend: 0.3, rightHandPose: 0, eyebrowRaise: 0.4, mouthOpen: 0.2 },
+      { ...REST_POSE, rightArmAngle: 0.5, rightArmForward: 0.3, rightArmSpread: -0.1, rightForearmBend: 0.5, rightHandPose: 0, eyebrowRaise: 0.5 },
+    ],
+  },
+  goodbye: {
+    type: "gesture", label: "GOODBYE",
+    description: "Open hand waves",
+    poses: [
+      { ...REST_POSE, rightArmAngle: 1.0, rightArmForward: 0.4, rightForearmBend: 0.3, rightHandPose: 0, headNod: 0.1 },
+      { ...REST_POSE, rightArmAngle: 1.0, rightArmForward: 0.4, rightArmSpread: 0.2, rightForearmBend: 0.3, rightHandPose: 0.5 },
+      { ...REST_POSE, rightArmAngle: 1.0, rightArmForward: 0.4, rightForearmBend: 0.3, rightHandPose: 0, headNod: 0.1 },
+    ],
+  },
+  bye: {
+    type: "gesture", label: "BYE",
+    description: "Open hand waves",
+    poses: [
+      { ...REST_POSE, rightArmAngle: 1.0, rightArmForward: 0.4, rightForearmBend: 0.3, rightHandPose: 0, headNod: 0.1 },
+      { ...REST_POSE, rightArmAngle: 1.0, rightArmForward: 0.4, rightArmSpread: 0.2, rightForearmBend: 0.3, rightHandPose: 0.5 },
+      { ...REST_POSE, rightArmAngle: 1.0, rightArmForward: 0.4, rightForearmBend: 0.3, rightHandPose: 0 },
+    ],
+  },
 };
 
 export function getSignForWord(word: string): WordSign {

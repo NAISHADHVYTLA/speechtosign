@@ -49,7 +49,7 @@ export default function Index() {
       if (i === 0) return;
       const t = setTimeout(() => {
         setCurrentIdx(i);
-      }, i * 1200); // 1.2s per word for readability
+      }, i * 1500); // 1.5s per word for clear readability
       playbackRef.current.push(t);
     });
 
