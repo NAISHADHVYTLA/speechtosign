@@ -1,5 +1,5 @@
 import { useRef, useEffect, useMemo } from "react";
-import { Canvas, useFrame, useGraph } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, Environment, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { SkeletonUtils } from "three-stdlib";
@@ -11,9 +11,6 @@ function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t;
 }
 
-function lerpAngle(a: number, b: number, t: number) {
-  return a + (b - a) * t;
-}
 
 // Bone name mappings for ReadyPlayerMe / Mixamo-style skeletons
 const BONE_NAMES = {
@@ -91,6 +88,10 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
     };
   }, [skeleton]);
 
+  // Store initial bind-pose quaternions
+  const initialRotations = useRef<Map<string, THREE.Euler>>(new Map());
+  const initialized = useRef(false);
+
   // Smooth interpolation state
   const current = useRef({
     rightArmAngle: 0, rightArmForward: 0, rightArmSpread: 0,
@@ -114,8 +115,28 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
     return mesh;
   }, [clonedScene]);
 
+  // Save initial bind-pose rotations on first frame
+  useEffect(() => {
+    if (!bones || initialized.current) return;
+    const store = (name: string, bone: THREE.Bone | null) => {
+      if (bone) initialRotations.current.set(name, bone.rotation.clone());
+    };
+    store("head", bones.head);
+    store("neck", bones.neck);
+    store("rightUpperArm", bones.rightUpperArm);
+    store("rightLowerArm", bones.rightLowerArm);
+    store("rightHand", bones.rightHand);
+    store("leftUpperArm", bones.leftUpperArm);
+    store("leftLowerArm", bones.leftLowerArm);
+    store("leftHand", bones.leftHand);
+    bones.spine.forEach((b, i) => store(`spine${i}`, b));
+    initialized.current = true;
+  }, [bones]);
+
+  const getInit = (name: string) => initialRotations.current.get(name);
+
   useFrame((state, delta) => {
-    if (!bones) return;
+    if (!bones || !initialized.current) return;
     const speed = 5;
     const c = current.current;
 
@@ -138,53 +159,80 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
     c.mouthOpen = lerp(c.mouthOpen, pose.mouthOpen, delta * speed);
     c.eyebrowRaise = lerp(c.eyebrowRaise, pose.eyebrowRaise, delta * speed);
 
-    // ── HEAD ──
-    if (bones.head) {
-      bones.head.rotation.x = c.headNod * 0.2;
-      bones.head.rotation.z = c.headTilt * 0.15;
-      bones.head.rotation.y = c.headTurn * 0.3;
+    // ── HEAD — offsets from bind pose ──
+    const headInit = getInit("head");
+    if (bones.head && headInit) {
+      bones.head.rotation.x = headInit.x + c.headNod * 0.2;
+      bones.head.rotation.y = headInit.y + c.headTurn * 0.3;
+      bones.head.rotation.z = headInit.z + c.headTilt * 0.15;
     }
 
-    // ReadyPlayerMe avatar is in T-pose by default.
-    // Arms are already horizontal. We need to:
-    // - Lower arms to rest (positive Z rotation for right, negative for left)
-    // - Then raise based on pose values
-    const REST_ARM_DOWN = Math.PI / 1.8; // Bring arms fully down from T-pose
+    // RPM bind pose: rightUpperArm x=0.998 z=0.144, leftUpperArm x=0.998 z=-0.144
+    // Use ZYX euler order to properly lower arms from T-pose
+    const tempEuler = new THREE.Euler();
 
     // ── RIGHT ARM ──
-    if (bones.rightUpperArm) {
-      // armAngle 0=down, 1=shoulder. Scale raise to ~60% of rest-down range
-      const baseZ = REST_ARM_DOWN * (1 - c.rightArmAngle * 0.55);
-      bones.rightUpperArm.rotation.z = baseZ;
-      bones.rightUpperArm.rotation.x = c.rightArmForward * 0.35;
-      bones.rightUpperArm.rotation.y = -c.rightArmSpread * 0.2;
+    const rArmInit = getInit("rightUpperArm");
+    if (bones.rightUpperArm && rArmInit) {
+      // armAngle: 0=down by side, 1=shoulder height (T-pose), 1.5=above head
+      // lowering from T-pose = rotating around world Z axis (positive = clockwise = arm down for right side)
+      const lowerAngle = (1 - c.rightArmAngle * 0.65) * 1.2; // radians to lower
+      const forwardAngle = -c.rightArmForward * 0.6;
+
+      // Start from bind pose
+      tempEuler.set(
+        rArmInit.x + forwardAngle,
+        rArmInit.y - c.rightArmSpread * 0.3,
+        rArmInit.z + lowerAngle,
+        'ZYX' // apply Z first (lower arm), then Y (spread), then X (forward)
+      );
+      bones.rightUpperArm.quaternion.setFromEuler(tempEuler);
     }
-    if (bones.rightLowerArm) {
-      bones.rightLowerArm.rotation.y = -c.rightForearmBend * Math.PI * 0.25;
+    const rForeInit = getInit("rightLowerArm");
+    if (bones.rightLowerArm && rForeInit) {
+      bones.rightLowerArm.rotation.set(
+        rForeInit.x,
+        rForeInit.y - c.rightForearmBend * 2.2,
+        rForeInit.z
+      );
     }
-    if (bones.rightHand) {
-      bones.rightHand.rotation.x = c.rightWristTilt * 0.25;
+    const rHandInit = getInit("rightHand");
+    if (bones.rightHand && rHandInit) {
+      bones.rightHand.rotation.x = rHandInit.x + c.rightWristTilt * 0.4;
     }
 
     // ── LEFT ARM ──
-    if (bones.leftUpperArm) {
-      const baseZ = -REST_ARM_DOWN * (1 - c.leftArmAngle * 0.55);
-      bones.leftUpperArm.rotation.z = baseZ;
-      bones.leftUpperArm.rotation.x = c.leftArmForward * 0.35;
-      bones.leftUpperArm.rotation.y = c.leftArmSpread * 0.2;
+    const lArmInit = getInit("leftUpperArm");
+    if (bones.leftUpperArm && lArmInit) {
+      const lowerAngle = (1 - c.leftArmAngle * 0.65) * 1.2;
+      const forwardAngle = -c.leftArmForward * 0.6;
+
+      tempEuler.set(
+        lArmInit.x + forwardAngle,
+        lArmInit.y + c.leftArmSpread * 0.3,
+        lArmInit.z - lowerAngle,
+        'ZYX'
+      );
+      bones.leftUpperArm.quaternion.setFromEuler(tempEuler);
     }
-    if (bones.leftLowerArm) {
-      bones.leftLowerArm.rotation.y = c.leftForearmBend * Math.PI * 0.25;
+    const lForeInit = getInit("leftLowerArm");
+    if (bones.leftLowerArm && lForeInit) {
+      bones.leftLowerArm.rotation.set(
+        lForeInit.x,
+        lForeInit.y + c.leftForearmBend * 2.2,
+        lForeInit.z
+      );
     }
-    if (bones.leftHand) {
-      bones.leftHand.rotation.x = c.leftWristTilt * 0.25;
+    const lHandInit = getInit("leftHand");
+    if (bones.leftHand && lHandInit) {
+      bones.leftHand.rotation.x = lHandInit.x + c.leftWristTilt * 0.4;
     }
 
     // ── FINGERS — curl based on handPose ──
     const fingerCurl = c.rightHandPose * 1.2;
     const setFingerCurl = (fingerBones: (THREE.Bone | null)[], curl: number) => {
       fingerBones.forEach((bone) => {
-        if (bone) bone.rotation.x = curl;
+        if (bone) bone.rotation.z = curl;
       });
     };
     setFingerCurl(bones.rightIndex, fingerCurl);
@@ -194,26 +242,23 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
     setFingerCurl(bones.rightThumb, fingerCurl * 0.7);
 
     const leftFingerCurl = c.leftHandPose * 1.2;
-    setFingerCurl(bones.leftIndex, leftFingerCurl);
-    setFingerCurl(bones.leftMiddle, leftFingerCurl);
-    setFingerCurl(bones.leftRing, leftFingerCurl);
-    setFingerCurl(bones.leftPinky, leftFingerCurl);
-    setFingerCurl(bones.leftThumb, leftFingerCurl * 0.7);
+    setFingerCurl(bones.leftIndex, -leftFingerCurl);
+    setFingerCurl(bones.leftMiddle, -leftFingerCurl);
+    setFingerCurl(bones.leftRing, -leftFingerCurl);
+    setFingerCurl(bones.leftPinky, -leftFingerCurl);
+    setFingerCurl(bones.leftThumb, -leftFingerCurl * 0.7);
 
     // ── FACIAL EXPRESSIONS via morph targets ──
     if (morphMesh && morphMesh.morphTargetDictionary && morphMesh.morphTargetInfluences) {
       const dict = morphMesh.morphTargetDictionary;
       const influences = morphMesh.morphTargetInfluences;
 
-      // Mouth open
       if (dict["jawOpen"] !== undefined) {
         influences[dict["jawOpen"]] = lerp(influences[dict["jawOpen"]], c.mouthOpen * 0.8, delta * speed);
       }
       if (dict["mouthOpen"] !== undefined) {
         influences[dict["mouthOpen"]] = lerp(influences[dict["mouthOpen"]], c.mouthOpen * 0.6, delta * speed);
       }
-
-      // Eyebrow raise
       if (dict["browInnerUp"] !== undefined) {
         influences[dict["browInnerUp"]] = lerp(influences[dict["browInnerUp"]], c.eyebrowRaise, delta * speed);
       }
@@ -226,8 +271,9 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
     }
 
     // Subtle breathing on spine
-    if (bones.spine[1]) {
-      bones.spine[1].rotation.x = Math.sin(state.clock.elapsedTime * 0.8) * 0.008;
+    const spineInit = getInit("spine1");
+    if (bones.spine[1] && spineInit) {
+      bones.spine[1].rotation.x = spineInit.x + Math.sin(state.clock.elapsedTime * 0.8) * 0.008;
     }
   });
 
