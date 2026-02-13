@@ -45,7 +45,7 @@ export default function SignAnimator({ words, currentWordIndex, isActive }: Sign
           const t = setTimeout(() => {
             setCurrentPose(pose);
             setCurrentLabel(word[i]?.toUpperCase() || sign.label);
-          }, i * 600);
+          }, i * 700);
           timeoutRefs.current.push(t);
         });
         // Return to rest after last letter
@@ -53,13 +53,13 @@ export default function SignAnimator({ words, currentWordIndex, isActive }: Sign
           setCurrentPose(null);
           setCurrentLabel("");
           setSignDescription("");
-        }, totalPoses * 600 + 400);
+        }, totalPoses * 700 + 500);
         timeoutRefs.current.push(restT);
       } else {
         sign.poses.forEach((pose, i) => {
           const t = setTimeout(() => {
             setCurrentPose(pose);
-          }, i * 500);
+          }, i * 600);
           timeoutRefs.current.push(t);
         });
         // Return to rest after last pose
@@ -67,7 +67,7 @@ export default function SignAnimator({ words, currentWordIndex, isActive }: Sign
           setCurrentPose(null);
           setCurrentLabel("");
           setSignDescription("");
-        }, totalPoses * 500 + 400);
+        }, totalPoses * 600 + 500);
         timeoutRefs.current.push(restT);
       }
     }
