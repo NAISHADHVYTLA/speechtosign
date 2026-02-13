@@ -39,6 +39,7 @@ export default function SignAnimator({ words, currentWordIndex, isActive }: Sign
     setSignDescription(sign.description);
 
     if (sign.poses && sign.poses.length > 0) {
+      const totalPoses = sign.poses.length;
       if (sign.type === "fingerspell") {
         sign.poses.forEach((pose, i) => {
           const t = setTimeout(() => {
@@ -47,6 +48,11 @@ export default function SignAnimator({ words, currentWordIndex, isActive }: Sign
           }, i * 600);
           timeoutRefs.current.push(t);
         });
+        // Return to rest after last letter
+        const restT = setTimeout(() => {
+          setCurrentPose(null);
+        }, totalPoses * 600 + 400);
+        timeoutRefs.current.push(restT);
       } else {
         sign.poses.forEach((pose, i) => {
           const t = setTimeout(() => {
@@ -54,6 +60,11 @@ export default function SignAnimator({ words, currentWordIndex, isActive }: Sign
           }, i * 500);
           timeoutRefs.current.push(t);
         });
+        // Return to rest after last pose
+        const restT = setTimeout(() => {
+          setCurrentPose(null);
+        }, totalPoses * 500 + 400);
+        timeoutRefs.current.push(restT);
       }
     }
 

@@ -95,9 +95,9 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
   // Smooth interpolation state
   const current = useRef({
     rightArmAngle: 0, rightArmForward: 0, rightArmSpread: 0,
-    rightForearmBend: 0.1, rightHandPose: 0.3, rightWristTilt: 0,
+    rightForearmBend: 0, rightHandPose: 0, rightWristTilt: 0,
     leftArmAngle: 0, leftArmForward: 0, leftArmSpread: 0,
-    leftForearmBend: 0.1, leftHandPose: 0.3, leftWristTilt: 0,
+    leftForearmBend: 0, leftHandPose: 0, leftWristTilt: 0,
     headNod: 0, headTilt: 0, headTurn: 0,
     mouthOpen: 0, eyebrowRaise: 0,
   });
