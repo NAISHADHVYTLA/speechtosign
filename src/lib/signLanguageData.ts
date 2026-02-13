@@ -92,9 +92,9 @@ export const COMMON_WORDS: Record<string, WordSign> = {
     type: "gesture", label: "HELLO",
     description: "Open hand wave near head",
     poses: [
-      { ...REST_POSE, rightArmAngle: 1.2, rightArmForward: 0.3, rightForearmBend: 0.3, rightHandPose: 0, headNod: 0.1, eyebrowRaise: 0.5, mouthOpen: 0.3 },
-      { ...REST_POSE, rightArmAngle: 1.2, rightArmForward: 0.3, rightArmSpread: 0.3, rightForearmBend: 0.3, rightHandPose: 0, headNod: 0.1, headTilt: 0.1 },
-      { ...REST_POSE, rightArmAngle: 1.2, rightArmForward: 0.3, rightArmSpread: -0.2, rightForearmBend: 0.3, rightHandPose: 0, headNod: 0.1, headTilt: -0.1 },
+      { ...REST_POSE, rightArmAngle: 0.8, rightArmForward: 0.3, rightForearmBend: 0.4, rightHandPose: 0, headNod: 0.1, eyebrowRaise: 0.5, mouthOpen: 0.3 },
+      { ...REST_POSE, rightArmAngle: 0.8, rightArmForward: 0.3, rightArmSpread: 0.3, rightForearmBend: 0.4, rightHandPose: 0, headNod: 0.1, headTilt: 0.1 },
+      { ...REST_POSE, rightArmAngle: 0.8, rightArmForward: 0.3, rightArmSpread: -0.2, rightForearmBend: 0.4, rightHandPose: 0, headNod: 0.1, headTilt: -0.1 },
     ],
   },
   hi: {
