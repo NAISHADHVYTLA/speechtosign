@@ -159,76 +159,60 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
     c.mouthOpen = lerp(c.mouthOpen, pose.mouthOpen, delta * speed);
     c.eyebrowRaise = lerp(c.eyebrowRaise, pose.eyebrowRaise, delta * speed);
 
-    // ── HEAD — offsets from bind pose ──
+    // ── HEAD — very subtle offsets from bind pose ──
     const headInit = getInit("head");
     if (bones.head && headInit) {
-      bones.head.rotation.x = headInit.x + c.headNod * 0.2;
-      bones.head.rotation.y = headInit.y + c.headTurn * 0.3;
-      bones.head.rotation.z = headInit.z + c.headTilt * 0.15;
+      bones.head.rotation.x = headInit.x + c.headNod * 0.1;
+      bones.head.rotation.y = headInit.y + c.headTurn * 0.15;
+      bones.head.rotation.z = headInit.z + c.headTilt * 0.08;
     }
-
-    // RPM bind pose: rightUpperArm x=0.998 z=0.144, leftUpperArm x=0.998 z=-0.144
-    // Use ZYX euler order to properly lower arms from T-pose
-    const tempEuler = new THREE.Euler();
 
     // ── RIGHT ARM ──
     const rArmInit = getInit("rightUpperArm");
     if (bones.rightUpperArm && rArmInit) {
-      // armAngle: 0=down at sides, 1=shoulder height
-      // Keep arm movements conservative — max shoulder height
-      const armClamped = Math.max(0, Math.min(c.rightArmAngle, 0.9));
-      const lowerAngle = (1 - armClamped) * 1.0;
-      // Forward brings arm in front of body — keep very subtle
-      const forwardAngle = c.rightArmForward * 0.15;
-
-      tempEuler.set(
-        rArmInit.x - forwardAngle,
-        rArmInit.y - c.rightArmSpread * 0.15,
-        rArmInit.z + lowerAngle,
-        'ZYX'
+      // armAngle 0 = bind pose (no change), higher = raise arm
+      // Use small additive offsets from bind pose only
+      const raiseAmount = Math.max(0, Math.min(c.rightArmAngle, 0.85)) * 0.12;
+      bones.rightUpperArm.rotation.set(
+        rArmInit.x - c.rightArmForward * 0.03,
+        rArmInit.y - c.rightArmSpread * 0.03,
+        rArmInit.z - raiseAmount  // negative Z raises right arm
       );
-      bones.rightUpperArm.quaternion.setFromEuler(tempEuler);
     }
     const rForeInit = getInit("rightLowerArm");
     if (bones.rightLowerArm && rForeInit) {
-      // Forearm bend — elbow curl. Keep moderate so elbow looks natural
       bones.rightLowerArm.rotation.set(
         rForeInit.x,
-        rForeInit.y - c.rightForearmBend * 0.9,
+        rForeInit.y - c.rightForearmBend * 0.3,
         rForeInit.z
       );
     }
     const rHandInit = getInit("rightHand");
     if (bones.rightHand && rHandInit) {
-      bones.rightHand.rotation.x = rHandInit.x + c.rightWristTilt * 0.3;
+      bones.rightHand.rotation.x = rHandInit.x + c.rightWristTilt * 0.15;
     }
 
     // ── LEFT ARM ──
     const lArmInit = getInit("leftUpperArm");
     if (bones.leftUpperArm && lArmInit) {
-      const armClamped = Math.max(0, Math.min(c.leftArmAngle, 0.9));
-      const lowerAngle = (1 - armClamped) * 1.0;
-      const forwardAngle = c.leftArmForward * 0.15;
-
-      tempEuler.set(
-        lArmInit.x - forwardAngle,
-        lArmInit.y + c.leftArmSpread * 0.15,
-        lArmInit.z - lowerAngle,
-        'ZYX'
+      const raiseAmount = Math.max(0, Math.min(c.leftArmAngle, 0.85)) * 0.12;
+      bones.leftUpperArm.rotation.set(
+        lArmInit.x - c.leftArmForward * 0.03,
+        lArmInit.y + c.leftArmSpread * 0.03,
+        lArmInit.z + raiseAmount  // positive Z raises left arm
       );
-      bones.leftUpperArm.quaternion.setFromEuler(tempEuler);
     }
     const lForeInit = getInit("leftLowerArm");
     if (bones.leftLowerArm && lForeInit) {
       bones.leftLowerArm.rotation.set(
         lForeInit.x,
-        lForeInit.y + c.leftForearmBend * 0.9,
+        lForeInit.y + c.leftForearmBend * 0.3,
         lForeInit.z
       );
     }
     const lHandInit = getInit("leftHand");
     if (bones.leftHand && lHandInit) {
-      bones.leftHand.rotation.x = lHandInit.x + c.leftWristTilt * 0.3;
+      bones.leftHand.rotation.x = lHandInit.x + c.leftWristTilt * 0.15;
     }
 
     // ── FINGERS — curl based on handPose ──
