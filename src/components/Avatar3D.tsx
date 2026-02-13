@@ -174,14 +174,14 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
     // ── RIGHT ARM ──
     const rArmInit = getInit("rightUpperArm");
     if (bones.rightUpperArm && rArmInit) {
-      // armAngle: 0=down by side, 1=shoulder height (T-pose), 1.5=above head
-      // T-pose → down needs ~π/2 rotation; above head goes negative
-      const lowerAngle = (1 - c.rightArmAngle) * 1.5; // 0→1.5rad (fully down), 1→0 (T-pose)
-      const forwardAngle = -c.rightArmForward * 0.8;
+      // armAngle: 0=down, 1=shoulder height, >1=above head
+      // Use small multiplier to keep movements controlled and visible
+      const lowerAngle = (1 - Math.min(c.rightArmAngle, 1.5)) * 0.8;
+      const forwardAngle = -c.rightArmForward * 0.3;
 
       tempEuler.set(
         rArmInit.x + forwardAngle,
-        rArmInit.y - c.rightArmSpread * 0.4,
+        rArmInit.y - c.rightArmSpread * 0.2,
         rArmInit.z + lowerAngle,
         'ZYX'
       );
@@ -191,7 +191,7 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
     if (bones.rightLowerArm && rForeInit) {
       bones.rightLowerArm.rotation.set(
         rForeInit.x,
-        rForeInit.y - c.rightForearmBend * 2.2,
+        rForeInit.y - c.rightForearmBend * 1.8,
         rForeInit.z
       );
     }
@@ -203,12 +203,12 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
     // ── LEFT ARM ──
     const lArmInit = getInit("leftUpperArm");
     if (bones.leftUpperArm && lArmInit) {
-      const lowerAngle = (1 - c.leftArmAngle) * 1.5;
-      const forwardAngle = -c.leftArmForward * 0.8;
+      const lowerAngle = (1 - Math.min(c.leftArmAngle, 1.5)) * 0.8;
+      const forwardAngle = -c.leftArmForward * 0.3;
 
       tempEuler.set(
         lArmInit.x + forwardAngle,
-        lArmInit.y + c.leftArmSpread * 0.4,
+        lArmInit.y + c.leftArmSpread * 0.2,
         lArmInit.z - lowerAngle,
         'ZYX'
       );
@@ -218,7 +218,7 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
     if (bones.leftLowerArm && lForeInit) {
       bones.leftLowerArm.rotation.set(
         lForeInit.x,
-        lForeInit.y + c.leftForearmBend * 2.2,
+        lForeInit.y + c.leftForearmBend * 1.8,
         lForeInit.z
       );
     }
@@ -295,7 +295,7 @@ export default function Avatar3D({ pose, label }: Avatar3DProps) {
   return (
     <div className="relative w-full h-full">
       <Canvas
-        camera={{ position: [0, 0.6, 2.2], fov: 35 }}
+        camera={{ position: [0, 0.5, 3], fov: 30 }}
         dpr={[1, 2]}
         gl={{ antialias: true, alpha: true }}
         style={{ background: "transparent" }}
@@ -308,13 +308,11 @@ export default function Avatar3D({ pose, label }: Avatar3DProps) {
         <OrbitControls
           enablePan={false}
           enableZoom={true}
-          minDistance={1.5}
-          maxDistance={4}
-          minPolarAngle={Math.PI / 6}
-          maxPolarAngle={Math.PI / 1.8}
+          enableRotate={false}
+          minDistance={2}
+          maxDistance={5}
           target={[0, 0.5, 0]}
-          autoRotate={!pose}
-          autoRotateSpeed={0.5}
+          autoRotate={false}
         />
         <Environment preset="studio" />
       </Canvas>
