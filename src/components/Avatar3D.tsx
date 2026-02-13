@@ -137,7 +137,7 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
 
   useFrame((state, delta) => {
     if (!bones || !initialized.current) return;
-    const speed = 7;
+    const speed = 10;
     const c = current.current;
 
     // Smooth interpolate all values
@@ -174,13 +174,14 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
     // ── RIGHT ARM ──
     const rArmInit = getInit("rightUpperArm");
     if (bones.rightUpperArm && rArmInit) {
-      // armAngle: 0=down, 1=shoulder height, >1=above head
-      // Use small multiplier to keep movements controlled and visible
-      const lowerAngle = (1 - Math.min(c.rightArmAngle, 1.5)) * 0.8;
-      const forwardAngle = -c.rightArmForward * 0.3;
+      // Clamp armAngle to [0,1] — 0=down, 1=shoulder height (T-pose)
+      // Never go above shoulder to prevent clipping
+      const armClamped = Math.max(0, Math.min(c.rightArmAngle, 0.85));
+      const lowerAngle = (1 - armClamped) * 1.2;
+      const forwardAngle = c.rightArmForward * 0.1;
 
       tempEuler.set(
-        rArmInit.x + forwardAngle,
+        rArmInit.x - forwardAngle,
         rArmInit.y - c.rightArmSpread * 0.2,
         rArmInit.z + lowerAngle,
         'ZYX'
@@ -191,23 +192,24 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
     if (bones.rightLowerArm && rForeInit) {
       bones.rightLowerArm.rotation.set(
         rForeInit.x,
-        rForeInit.y - c.rightForearmBend * 1.8,
+        rForeInit.y - c.rightForearmBend * 0.8,
         rForeInit.z
       );
     }
     const rHandInit = getInit("rightHand");
     if (bones.rightHand && rHandInit) {
-      bones.rightHand.rotation.x = rHandInit.x + c.rightWristTilt * 0.4;
+      bones.rightHand.rotation.x = rHandInit.x + c.rightWristTilt * 0.3;
     }
 
     // ── LEFT ARM ──
     const lArmInit = getInit("leftUpperArm");
     if (bones.leftUpperArm && lArmInit) {
-      const lowerAngle = (1 - Math.min(c.leftArmAngle, 1.5)) * 0.8;
-      const forwardAngle = -c.leftArmForward * 0.3;
+      const armClamped = Math.max(0, Math.min(c.leftArmAngle, 0.85));
+      const lowerAngle = (1 - armClamped) * 1.2;
+      const forwardAngle = c.leftArmForward * 0.1;
 
       tempEuler.set(
-        lArmInit.x + forwardAngle,
+        lArmInit.x - forwardAngle,
         lArmInit.y + c.leftArmSpread * 0.2,
         lArmInit.z - lowerAngle,
         'ZYX'
@@ -218,13 +220,13 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
     if (bones.leftLowerArm && lForeInit) {
       bones.leftLowerArm.rotation.set(
         lForeInit.x,
-        lForeInit.y + c.leftForearmBend * 1.8,
+        lForeInit.y + c.leftForearmBend * 0.8,
         lForeInit.z
       );
     }
     const lHandInit = getInit("leftHand");
     if (bones.leftHand && lHandInit) {
-      bones.leftHand.rotation.x = lHandInit.x + c.leftWristTilt * 0.4;
+      bones.leftHand.rotation.x = lHandInit.x + c.leftWristTilt * 0.3;
     }
 
     // ── FINGERS — curl based on handPose ──
