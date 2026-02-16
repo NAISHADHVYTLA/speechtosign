@@ -178,46 +178,47 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
       bones.head.rotation.z = headInit.z + c.headTilt * 0.08;
     }
 
-    // Helper: apply quaternion-based rotation offset to a bone
-    // This avoids gimbal lock and Euler order issues
+    // Helper: apply quaternion-based rotation offset in BONE-LOCAL space
+    // Using multiply (post-multiply) applies delta AFTER bind pose = local rotation
+    // premultiply was wrong — it applied in world space, causing the avatar to fly off
     const applyQuat = (bone: THREE.Bone | null, name: string, rx: number, ry: number, rz: number) => {
       const initQ = getInitQ(name);
       if (!bone || !initQ) return;
       // Start from bind pose quaternion
       tempQ.copy(initQ);
-      // Apply small local rotations via quaternion multiplication
+      // Apply local rotations via post-multiplication (bone-local space)
       if (Math.abs(rx) > 0.001) {
         deltaQ.setFromAxisAngle(axisX, rx);
-        tempQ.premultiply(deltaQ);
+        tempQ.multiply(deltaQ);
       }
       if (Math.abs(ry) > 0.001) {
         deltaQ.setFromAxisAngle(axisY, ry);
-        tempQ.premultiply(deltaQ);
+        tempQ.multiply(deltaQ);
       }
       if (Math.abs(rz) > 0.001) {
         deltaQ.setFromAxisAngle(axisZ, rz);
-        tempQ.premultiply(deltaQ);
+        tempQ.multiply(deltaQ);
       }
       bone.quaternion.copy(tempQ);
     };
 
-    // ── RIGHT ARM — very small upper arm, rely on forearm for visibility ──
-    const raiseR = Math.max(0, Math.min(c.rightArmAngle, 1.0)) * 0.03;
+    // ── RIGHT ARM — now with proper local-space rotations we can use real multipliers ──
+    const raiseR = Math.max(0, Math.min(c.rightArmAngle, 1.5)) * 0.6;
     applyQuat(bones.rightUpperArm, "rightUpperArm",
-      -c.rightArmForward * 0.02, -c.rightArmSpread * 0.02, -raiseR);
+      -c.rightArmForward * 0.5, -c.rightArmSpread * 0.3, -raiseR);
     applyQuat(bones.rightLowerArm, "rightLowerArm",
-      0, -c.rightForearmBend * 0.5, 0);
+      0, -c.rightForearmBend * 1.0, 0);
     applyQuat(bones.rightHand, "rightHand",
-      c.rightWristTilt * 0.2, 0, 0);
+      c.rightWristTilt * 0.4, 0, 0);
 
     // ── LEFT ARM ──
-    const raiseL = Math.max(0, Math.min(c.leftArmAngle, 1.0)) * 0.03;
+    const raiseL = Math.max(0, Math.min(c.leftArmAngle, 1.5)) * 0.6;
     applyQuat(bones.leftUpperArm, "leftUpperArm",
-      -c.leftArmForward * 0.02, c.leftArmSpread * 0.02, raiseL);
+      -c.leftArmForward * 0.5, c.leftArmSpread * 0.3, raiseL);
     applyQuat(bones.leftLowerArm, "leftLowerArm",
-      0, c.leftForearmBend * 0.5, 0);
+      0, c.leftForearmBend * 1.0, 0);
     applyQuat(bones.leftHand, "leftHand",
-      c.leftWristTilt * 0.2, 0, 0);
+      c.leftWristTilt * 0.4, 0, 0);
 
     // ── FINGERS — curl based on handPose ──
     const fingerCurl = c.rightHandPose * 1.2;
