@@ -1,5 +1,5 @@
-import { useRef, useEffect, useMemo } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { useRef, useEffect, useMemo, useState, useCallback, forwardRef, useImperativeHandle } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Environment, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { SkeletonUtils } from "three-stdlib";
@@ -11,17 +11,17 @@ function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t;
 }
 
-// Ease-out for more natural deceleration
 function smoothLerp(a: number, b: number, t: number) {
   const ease = 1 - Math.pow(1 - t, 2);
   return a + (b - a) * ease;
 }
 
-// Bone name mappings for ReadyPlayerMe / Mixamo-style skeletons
+// ─── Bone name mappings ──────────────────────────────────────
 const BONE_NAMES = {
   spine: ["Spine", "Spine1", "Spine2"],
   neck: "Neck",
   head: "Head",
+  hips: "Hips",
   rightShoulder: "RightShoulder",
   leftShoulder: "LeftShoulder",
   rightUpperArm: "RightArm",
@@ -47,352 +47,405 @@ function findBone(skeleton: THREE.Skeleton | null, partialName: string): THREE.B
   return skeleton.bones.find((b) => b.name.includes(partialName)) || null;
 }
 
-interface AnimatedAvatarProps {
-  pose: AvatarPose;
+// ─── Mixer-based avatar for GLB animation clips ──────────────
+export interface AvatarHandle {
+  playClip: (clip: THREE.AnimationClip, fadeIn?: number, fadeOut?: number) => Promise<void>;
+  mixer: THREE.AnimationMixer | null;
 }
 
-function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
-  const { scene } = useGLTF(MODEL_URL);
-  const clonedScene = useMemo(() => SkeletonUtils.clone(scene), [scene]);
-  const groupRef = useRef<THREE.Group>(null);
+interface AnimatedAvatarProps {
+  pose: AvatarPose;
+  useProceduralPose: boolean; // true = use pose data, false = mixer is driving
+}
 
-  const skeleton = useMemo(() => {
-    let skel: THREE.Skeleton | null = null;
-    clonedScene.traverse((child) => {
-      if ((child as THREE.SkinnedMesh).isSkinnedMesh) {
-        skel = (child as THREE.SkinnedMesh).skeleton;
-      }
-    });
-    return skel;
-  }, [clonedScene]);
+const AnimatedAvatarInner = forwardRef<AvatarHandle, AnimatedAvatarProps>(
+  function AnimatedAvatarInner({ pose, useProceduralPose }, ref) {
+    const { scene } = useGLTF(MODEL_URL);
+    const clonedScene = useMemo(() => SkeletonUtils.clone(scene), [scene]);
+    const groupRef = useRef<THREE.Group>(null);
+    const mixerRef = useRef<THREE.AnimationMixer | null>(null);
+    const activeActionRef = useRef<THREE.AnimationAction | null>(null);
 
-  const bones = useMemo(() => {
-    if (!skeleton) return null;
-    return {
-      head: findBone(skeleton, BONE_NAMES.head),
-      neck: findBone(skeleton, BONE_NAMES.neck),
-      spine: BONE_NAMES.spine.map((n) => findBone(skeleton, n)),
-      rightShoulder: findBone(skeleton, BONE_NAMES.rightShoulder),
-      leftShoulder: findBone(skeleton, BONE_NAMES.leftShoulder),
-      rightUpperArm: findBone(skeleton, BONE_NAMES.rightUpperArm),
-      rightLowerArm: findBone(skeleton, BONE_NAMES.rightLowerArm),
-      rightHand: findBone(skeleton, BONE_NAMES.rightHand),
-      leftUpperArm: findBone(skeleton, BONE_NAMES.leftUpperArm),
-      leftLowerArm: findBone(skeleton, BONE_NAMES.leftLowerArm),
-      leftHand: findBone(skeleton, BONE_NAMES.leftHand),
-      rightThumb: BONE_NAMES.rightThumb.map((n) => findBone(skeleton, n)),
-      rightIndex: BONE_NAMES.rightIndex.map((n) => findBone(skeleton, n)),
-      rightMiddle: BONE_NAMES.rightMiddle.map((n) => findBone(skeleton, n)),
-      rightRing: BONE_NAMES.rightRing.map((n) => findBone(skeleton, n)),
-      rightPinky: BONE_NAMES.rightPinky.map((n) => findBone(skeleton, n)),
-      leftThumb: BONE_NAMES.leftThumb.map((n) => findBone(skeleton, n)),
-      leftIndex: BONE_NAMES.leftIndex.map((n) => findBone(skeleton, n)),
-      leftMiddle: BONE_NAMES.leftMiddle.map((n) => findBone(skeleton, n)),
-      leftRing: BONE_NAMES.leftRing.map((n) => findBone(skeleton, n)),
-      leftPinky: BONE_NAMES.leftPinky.map((n) => findBone(skeleton, n)),
-    };
-  }, [skeleton]);
+    // Create mixer
+    useEffect(() => {
+      mixerRef.current = new THREE.AnimationMixer(clonedScene);
+      return () => {
+        mixerRef.current?.stopAllAction();
+        mixerRef.current = null;
+      };
+    }, [clonedScene]);
 
-  const initialQuaternions = useRef<Map<string, THREE.Quaternion>>(new Map());
-  const initialRotations = useRef<Map<string, THREE.Euler>>(new Map());
-  const initialized = useRef(false);
+    // Expose mixer handle
+    useImperativeHandle(ref, () => ({
+      mixer: mixerRef.current,
+      playClip: (clip: THREE.AnimationClip, fadeIn = 0.3, fadeOut = 0.3) => {
+        return new Promise<void>((resolve) => {
+          const mixer = mixerRef.current;
+          if (!mixer) { resolve(); return; }
 
-  // Smooth interpolation state — matches REST_POSE for natural idle
-  const current = useRef({
-    rightArmAngle: 0, rightArmForward: 0.05, rightArmSpread: 0,
-    rightForearmBend: 0.15, rightHandPose: 0.05, rightWristTilt: 0, rightWristRotate: 0,
-    leftArmAngle: 0, leftArmForward: 0.05, leftArmSpread: 0,
-    leftForearmBend: 0.15, leftHandPose: 0.05, leftWristTilt: 0, leftWristRotate: 0,
-    headNod: 0, headTilt: 0, headTurn: 0,
-    mouthOpen: 0, eyebrowRaise: 0,
-    rightThumbCurl: 0.1, rightIndexCurl: 0.1, rightMiddleCurl: 0.1, rightRingCurl: 0.12, rightPinkyCurl: 0.12,
-    rightFingerSpread: 0.05,
-    leftThumbCurl: 0.1, leftIndexCurl: 0.1, leftMiddleCurl: 0.1, leftRingCurl: 0.12, leftPinkyCurl: 0.12,
-    leftFingerSpread: 0.05,
-  });
+          // Fade out any current action
+          if (activeActionRef.current) {
+            activeActionRef.current.fadeOut(fadeIn);
+          }
 
-  // Find morph target mesh for facial expressions
-  const morphMesh = useMemo(() => {
-    let mesh: THREE.SkinnedMesh | null = null;
-    clonedScene.traverse((child) => {
-      if ((child as THREE.SkinnedMesh).isSkinnedMesh && (child as THREE.SkinnedMesh).morphTargetInfluences) {
-        if (!mesh || child.name.includes("Head") || child.name.includes("Wolf3D_Head")) {
-          mesh = child as THREE.SkinnedMesh;
+          const action = mixer.clipAction(clip);
+          action.reset();
+          action.setLoop(THREE.LoopOnce, 1);
+          action.clampWhenFinished = true;
+          action.fadeIn(fadeIn);
+          action.play();
+          activeActionRef.current = action;
+
+          const onFinished = () => {
+            mixer.removeEventListener("finished", onFinished);
+            action.fadeOut(fadeOut);
+            activeActionRef.current = null;
+            resolve();
+          };
+          mixer.addEventListener("finished", onFinished);
+        });
+      },
+    }), []);
+
+    const skeleton = useMemo(() => {
+      let skel: THREE.Skeleton | null = null;
+      clonedScene.traverse((child) => {
+        if ((child as THREE.SkinnedMesh).isSkinnedMesh) {
+          skel = (child as THREE.SkinnedMesh).skeleton;
         }
-      }
+      });
+      return skel;
+    }, [clonedScene]);
+
+    const bones = useMemo(() => {
+      if (!skeleton) return null;
+      return {
+        head: findBone(skeleton, BONE_NAMES.head),
+        neck: findBone(skeleton, BONE_NAMES.neck),
+        hips: findBone(skeleton, "Hips"),
+        spine: BONE_NAMES.spine.map((n) => findBone(skeleton, n)),
+        rightShoulder: findBone(skeleton, BONE_NAMES.rightShoulder),
+        leftShoulder: findBone(skeleton, BONE_NAMES.leftShoulder),
+        rightUpperArm: findBone(skeleton, BONE_NAMES.rightUpperArm),
+        rightLowerArm: findBone(skeleton, BONE_NAMES.rightLowerArm),
+        rightHand: findBone(skeleton, BONE_NAMES.rightHand),
+        leftUpperArm: findBone(skeleton, BONE_NAMES.leftUpperArm),
+        leftLowerArm: findBone(skeleton, BONE_NAMES.leftLowerArm),
+        leftHand: findBone(skeleton, BONE_NAMES.leftHand),
+        rightThumb: BONE_NAMES.rightThumb.map((n) => findBone(skeleton, n)),
+        rightIndex: BONE_NAMES.rightIndex.map((n) => findBone(skeleton, n)),
+        rightMiddle: BONE_NAMES.rightMiddle.map((n) => findBone(skeleton, n)),
+        rightRing: BONE_NAMES.rightRing.map((n) => findBone(skeleton, n)),
+        rightPinky: BONE_NAMES.rightPinky.map((n) => findBone(skeleton, n)),
+        leftThumb: BONE_NAMES.leftThumb.map((n) => findBone(skeleton, n)),
+        leftIndex: BONE_NAMES.leftIndex.map((n) => findBone(skeleton, n)),
+        leftMiddle: BONE_NAMES.leftMiddle.map((n) => findBone(skeleton, n)),
+        leftRing: BONE_NAMES.leftRing.map((n) => findBone(skeleton, n)),
+        leftPinky: BONE_NAMES.leftPinky.map((n) => findBone(skeleton, n)),
+      };
+    }, [skeleton]);
+
+    const initialQuaternions = useRef<Map<string, THREE.Quaternion>>(new Map());
+    const initialRotations = useRef<Map<string, THREE.Euler>>(new Map());
+    const initialized = useRef(false);
+
+    const current = useRef({
+      rightArmAngle: 0, rightArmForward: 0.05, rightArmSpread: 0,
+      rightForearmBend: 0.15, rightHandPose: 0.05, rightWristTilt: 0, rightWristRotate: 0,
+      leftArmAngle: 0, leftArmForward: 0.05, leftArmSpread: 0,
+      leftForearmBend: 0.15, leftHandPose: 0.05, leftWristTilt: 0, leftWristRotate: 0,
+      headNod: 0, headTilt: 0, headTurn: 0,
+      mouthOpen: 0, eyebrowRaise: 0,
+      rightThumbCurl: 0.1, rightIndexCurl: 0.1, rightMiddleCurl: 0.1, rightRingCurl: 0.12, rightPinkyCurl: 0.12,
+      rightFingerSpread: 0.05,
+      leftThumbCurl: 0.1, leftIndexCurl: 0.1, leftMiddleCurl: 0.1, leftRingCurl: 0.12, leftPinkyCurl: 0.12,
+      leftFingerSpread: 0.05,
     });
-    return mesh;
-  }, [clonedScene]);
 
-  // Save initial bind-pose rotations
-  useEffect(() => {
-    if (!bones || initialized.current) return;
-    const store = (name: string, bone: THREE.Bone | null) => {
-      if (bone) {
-        initialRotations.current.set(name, bone.rotation.clone());
-        initialQuaternions.current.set(name, bone.quaternion.clone());
+    const morphMesh = useMemo(() => {
+      let mesh: THREE.SkinnedMesh | null = null;
+      clonedScene.traverse((child) => {
+        if ((child as THREE.SkinnedMesh).isSkinnedMesh && (child as THREE.SkinnedMesh).morphTargetInfluences) {
+          if (!mesh || child.name.includes("Head") || child.name.includes("Wolf3D_Head")) {
+            mesh = child as THREE.SkinnedMesh;
+          }
+        }
+      });
+      return mesh;
+    }, [clonedScene]);
+
+    // Save bind-pose rotations
+    useEffect(() => {
+      if (!bones || initialized.current) return;
+      const store = (name: string, bone: THREE.Bone | null) => {
+        if (bone) {
+          initialRotations.current.set(name, bone.rotation.clone());
+          initialQuaternions.current.set(name, bone.quaternion.clone());
+        }
+      };
+      store("head", bones.head);
+      store("neck", bones.neck);
+      store("rightShoulder", bones.rightShoulder);
+      store("leftShoulder", bones.leftShoulder);
+      store("rightUpperArm", bones.rightUpperArm);
+      store("rightLowerArm", bones.rightLowerArm);
+      store("rightHand", bones.rightHand);
+      store("leftUpperArm", bones.leftUpperArm);
+      store("leftLowerArm", bones.leftLowerArm);
+      store("leftHand", bones.leftHand);
+      bones.spine.forEach((b, i) => store(`spine${i}`, b));
+      initialized.current = true;
+    }, [bones]);
+
+    const getInit = (name: string) => initialRotations.current.get(name);
+    const getInitQ = (name: string) => initialQuaternions.current.get(name);
+
+    const tempQ = useMemo(() => new THREE.Quaternion(), []);
+    const deltaQ = useMemo(() => new THREE.Quaternion(), []);
+    const axisX = useMemo(() => new THREE.Vector3(1, 0, 0), []);
+    const axisY = useMemo(() => new THREE.Vector3(0, 1, 0), []);
+    const axisZ = useMemo(() => new THREE.Vector3(0, 0, 1), []);
+
+    useFrame((state, delta) => {
+      // Always update mixer (for GLB animation clips)
+      mixerRef.current?.update(delta);
+
+      // If mixer is driving the animation, skip procedural pose
+      if (!useProceduralPose || !bones || !initialized.current) return;
+
+      const speed = 6;
+      const t = Math.min(delta * speed, 1);
+      const c = current.current;
+
+      // ── Smooth interpolate all values ──
+      c.rightArmAngle = smoothLerp(c.rightArmAngle, pose.rightArmAngle, t);
+      c.rightArmForward = smoothLerp(c.rightArmForward, pose.rightArmForward, t);
+      c.rightArmSpread = smoothLerp(c.rightArmSpread, pose.rightArmSpread, t);
+      c.rightForearmBend = smoothLerp(c.rightForearmBend, pose.rightForearmBend, t);
+      c.rightHandPose = smoothLerp(c.rightHandPose, pose.rightHandPose, t);
+      c.rightWristTilt = smoothLerp(c.rightWristTilt, pose.rightWristTilt, t);
+      c.rightWristRotate = smoothLerp(c.rightWristRotate, pose.rightWristRotate ?? 0, t);
+      c.leftArmAngle = smoothLerp(c.leftArmAngle, pose.leftArmAngle, t);
+      c.leftArmForward = smoothLerp(c.leftArmForward, pose.leftArmForward, t);
+      c.leftArmSpread = smoothLerp(c.leftArmSpread, pose.leftArmSpread, t);
+      c.leftForearmBend = smoothLerp(c.leftForearmBend, pose.leftForearmBend, t);
+      c.leftHandPose = smoothLerp(c.leftHandPose, pose.leftHandPose, t);
+      c.leftWristTilt = smoothLerp(c.leftWristTilt, pose.leftWristTilt, t);
+      c.leftWristRotate = smoothLerp(c.leftWristRotate, pose.leftWristRotate ?? 0, t);
+      c.headNod = smoothLerp(c.headNod, pose.headNod, t);
+      c.headTilt = smoothLerp(c.headTilt, pose.headTilt, t);
+      c.headTurn = smoothLerp(c.headTurn, pose.headTurn, t);
+      c.mouthOpen = smoothLerp(c.mouthOpen, pose.mouthOpen, t);
+      c.eyebrowRaise = smoothLerp(c.eyebrowRaise, pose.eyebrowRaise, t);
+
+      const fingerT = Math.min(delta * 8, 1);
+      c.rightThumbCurl = lerp(c.rightThumbCurl, pose.rightThumbCurl ?? pose.rightHandPose * 0.7, fingerT);
+      c.rightIndexCurl = lerp(c.rightIndexCurl, pose.rightIndexCurl ?? pose.rightHandPose, fingerT);
+      c.rightMiddleCurl = lerp(c.rightMiddleCurl, pose.rightMiddleCurl ?? pose.rightHandPose, fingerT);
+      c.rightRingCurl = lerp(c.rightRingCurl, pose.rightRingCurl ?? pose.rightHandPose, fingerT);
+      c.rightPinkyCurl = lerp(c.rightPinkyCurl, pose.rightPinkyCurl ?? pose.rightHandPose, fingerT);
+      c.rightFingerSpread = lerp(c.rightFingerSpread, pose.rightFingerSpread ?? 0, fingerT);
+      c.leftThumbCurl = lerp(c.leftThumbCurl, pose.leftThumbCurl ?? pose.leftHandPose * 0.7, fingerT);
+      c.leftIndexCurl = lerp(c.leftIndexCurl, pose.leftIndexCurl ?? pose.leftHandPose, fingerT);
+      c.leftMiddleCurl = lerp(c.leftMiddleCurl, pose.leftMiddleCurl ?? pose.leftHandPose, fingerT);
+      c.leftRingCurl = lerp(c.leftRingCurl, pose.leftRingCurl ?? pose.leftHandPose, fingerT);
+      c.leftPinkyCurl = lerp(c.leftPinkyCurl, pose.leftPinkyCurl ?? pose.leftHandPose, fingerT);
+      c.leftFingerSpread = lerp(c.leftFingerSpread, pose.leftFingerSpread ?? 0, fingerT);
+
+      // ── HEAD ──
+      const headInit = getInit("head");
+      if (bones.head && headInit) {
+        bones.head.rotation.x = headInit.x + c.headNod * 0.15;
+        bones.head.rotation.y = headInit.y + c.headTurn * 0.2;
+        bones.head.rotation.z = headInit.z + c.headTilt * 0.1;
       }
-    };
-    store("head", bones.head);
-    store("neck", bones.neck);
-    store("rightShoulder", bones.rightShoulder);
-    store("leftShoulder", bones.leftShoulder);
-    store("rightUpperArm", bones.rightUpperArm);
-    store("rightLowerArm", bones.rightLowerArm);
-    store("rightHand", bones.rightHand);
-    store("leftUpperArm", bones.leftUpperArm);
-    store("leftLowerArm", bones.leftLowerArm);
-    store("leftHand", bones.leftHand);
-    bones.spine.forEach((b, i) => store(`spine${i}`, b));
-    initialized.current = true;
-  }, [bones]);
 
-  const getInit = (name: string) => initialRotations.current.get(name);
-  const getInitQ = (name: string) => initialQuaternions.current.get(name);
+      const neckInit = getInit("neck");
+      if (bones.neck && neckInit) {
+        bones.neck.rotation.x = neckInit.x + c.headNod * 0.05;
+        bones.neck.rotation.y = neckInit.y + c.headTurn * 0.08;
+      }
 
-  const tempQ = useMemo(() => new THREE.Quaternion(), []);
-  const deltaQ = useMemo(() => new THREE.Quaternion(), []);
-  const axisX = useMemo(() => new THREE.Vector3(1, 0, 0), []);
-  const axisY = useMemo(() => new THREE.Vector3(0, 1, 0), []);
-  const axisZ = useMemo(() => new THREE.Vector3(0, 0, 1), []);
+      // Helper: quaternion-based rotation in bone-local space
+      const applyQuat = (bone: THREE.Bone | null, name: string, rx: number, ry: number, rz: number) => {
+        const initQ = getInitQ(name);
+        if (!bone || !initQ) return;
+        tempQ.copy(initQ);
+        if (Math.abs(rx) > 0.001) { deltaQ.setFromAxisAngle(axisX, rx); tempQ.multiply(deltaQ); }
+        if (Math.abs(ry) > 0.001) { deltaQ.setFromAxisAngle(axisY, ry); tempQ.multiply(deltaQ); }
+        if (Math.abs(rz) > 0.001) { deltaQ.setFromAxisAngle(axisZ, rz); tempQ.multiply(deltaQ); }
+        bone.quaternion.copy(tempQ);
+      };
 
-  useFrame((state, delta) => {
-    if (!bones || !initialized.current) return;
-    const speed = 6; // Smooth, natural transition speed
-    const t = Math.min(delta * speed, 1);
-    const c = current.current;
+      // ── SHOULDERS ──
+      const shoulderLiftR = Math.max(0, c.rightArmAngle - 0.6) * 0.3;
+      applyQuat(bones.rightShoulder, "rightShoulder",
+        -c.rightArmForward * 0.08, 0, -shoulderLiftR);
+      const shoulderLiftL = Math.max(0, c.leftArmAngle - 0.6) * 0.3;
+      applyQuat(bones.leftShoulder, "leftShoulder",
+        -c.leftArmForward * 0.08, 0, shoulderLiftL);
 
-    // ── Smooth interpolate all arm/body values ──
-    c.rightArmAngle = smoothLerp(c.rightArmAngle, pose.rightArmAngle, t);
-    c.rightArmForward = smoothLerp(c.rightArmForward, pose.rightArmForward, t);
-    c.rightArmSpread = smoothLerp(c.rightArmSpread, pose.rightArmSpread, t);
-    c.rightForearmBend = smoothLerp(c.rightForearmBend, pose.rightForearmBend, t);
-    c.rightHandPose = smoothLerp(c.rightHandPose, pose.rightHandPose, t);
-    c.rightWristTilt = smoothLerp(c.rightWristTilt, pose.rightWristTilt, t);
-    c.rightWristRotate = smoothLerp(c.rightWristRotate, pose.rightWristRotate ?? 0, t);
-    c.leftArmAngle = smoothLerp(c.leftArmAngle, pose.leftArmAngle, t);
-    c.leftArmForward = smoothLerp(c.leftArmForward, pose.leftArmForward, t);
-    c.leftArmSpread = smoothLerp(c.leftArmSpread, pose.leftArmSpread, t);
-    c.leftForearmBend = smoothLerp(c.leftForearmBend, pose.leftForearmBend, t);
-    c.leftHandPose = smoothLerp(c.leftHandPose, pose.leftHandPose, t);
-    c.leftWristTilt = smoothLerp(c.leftWristTilt, pose.leftWristTilt, t);
-    c.leftWristRotate = smoothLerp(c.leftWristRotate, pose.leftWristRotate ?? 0, t);
-    c.headNod = smoothLerp(c.headNod, pose.headNod, t);
-    c.headTilt = smoothLerp(c.headTilt, pose.headTilt, t);
-    c.headTurn = smoothLerp(c.headTurn, pose.headTurn, t);
-    c.mouthOpen = smoothLerp(c.mouthOpen, pose.mouthOpen, t);
-    c.eyebrowRaise = smoothLerp(c.eyebrowRaise, pose.eyebrowRaise, t);
-
-    // ── Per-finger interpolation (falls back to handPose when per-finger not set) ──
-    const fingerT = Math.min(delta * 8, 1); // Fingers move slightly faster for crisp handshapes
-    c.rightThumbCurl = lerp(c.rightThumbCurl, pose.rightThumbCurl ?? pose.rightHandPose * 0.7, fingerT);
-    c.rightIndexCurl = lerp(c.rightIndexCurl, pose.rightIndexCurl ?? pose.rightHandPose, fingerT);
-    c.rightMiddleCurl = lerp(c.rightMiddleCurl, pose.rightMiddleCurl ?? pose.rightHandPose, fingerT);
-    c.rightRingCurl = lerp(c.rightRingCurl, pose.rightRingCurl ?? pose.rightHandPose, fingerT);
-    c.rightPinkyCurl = lerp(c.rightPinkyCurl, pose.rightPinkyCurl ?? pose.rightHandPose, fingerT);
-    c.rightFingerSpread = lerp(c.rightFingerSpread, pose.rightFingerSpread ?? 0, fingerT);
-    c.leftThumbCurl = lerp(c.leftThumbCurl, pose.leftThumbCurl ?? pose.leftHandPose * 0.7, fingerT);
-    c.leftIndexCurl = lerp(c.leftIndexCurl, pose.leftIndexCurl ?? pose.leftHandPose, fingerT);
-    c.leftMiddleCurl = lerp(c.leftMiddleCurl, pose.leftMiddleCurl ?? pose.leftHandPose, fingerT);
-    c.leftRingCurl = lerp(c.leftRingCurl, pose.leftRingCurl ?? pose.leftHandPose, fingerT);
-    c.leftPinkyCurl = lerp(c.leftPinkyCurl, pose.leftPinkyCurl ?? pose.leftHandPose, fingerT);
-    c.leftFingerSpread = lerp(c.leftFingerSpread, pose.leftFingerSpread ?? 0, fingerT);
-
-    // ── HEAD ──
-    const headInit = getInit("head");
-    if (bones.head && headInit) {
-      bones.head.rotation.x = headInit.x + c.headNod * 0.15;
-      bones.head.rotation.y = headInit.y + c.headTurn * 0.2;
-      bones.head.rotation.z = headInit.z + c.headTilt * 0.1;
-    }
-
-    // ── NECK — subtle follow ──
-    const neckInit = getInit("neck");
-    if (bones.neck && neckInit) {
-      bones.neck.rotation.x = neckInit.x + c.headNod * 0.05;
-      bones.neck.rotation.y = neckInit.y + c.headTurn * 0.08;
-    }
-
-    // Helper: quaternion-based rotation in bone-local space
-    const applyQuat = (bone: THREE.Bone | null, name: string, rx: number, ry: number, rz: number) => {
-      const initQ = getInitQ(name);
-      if (!bone || !initQ) return;
-      tempQ.copy(initQ);
-      if (Math.abs(rx) > 0.001) { deltaQ.setFromAxisAngle(axisX, rx); tempQ.multiply(deltaQ); }
-      if (Math.abs(ry) > 0.001) { deltaQ.setFromAxisAngle(axisY, ry); tempQ.multiply(deltaQ); }
-      if (Math.abs(rz) > 0.001) { deltaQ.setFromAxisAngle(axisZ, rz); tempQ.multiply(deltaQ); }
-      bone.quaternion.copy(tempQ);
-    };
-
-    // ── SHOULDERS — natural lift when arms raise above neutral ──
-    const shoulderLiftR = Math.max(0, c.rightArmAngle - 0.6) * 0.3;
-    applyQuat(bones.rightShoulder, "rightShoulder",
-      -c.rightArmForward * 0.08, 0, -shoulderLiftR);
-    const shoulderLiftL = Math.max(0, c.leftArmAngle - 0.6) * 0.3;
-    applyQuat(bones.leftShoulder, "leftShoulder",
-      -c.leftArmForward * 0.08, 0, shoulderLiftL);
-
-    // ── ARMS — world-space rotation approach ──
-    // armAngle: 0=arms at sides, 1=signing/chest level, 1.5+=above head
-    // T-pose bind has arms at ~90° (π/2). We need full π/2 offset to bring arms down.
-    {
-      if (bones.rightUpperArm && bones.rightUpperArm.parent) {
+      // ── RIGHT UPPER ARM ──
+      // Direct bone-local rotation from T-pose bind
+      // In Mixamo/RPM rigs, rotating the upper arm around local Z brings it down
+      {
         const initQ = getInitQ("rightUpperArm");
-        if (initQ) {
-          // Get parent's world quaternion to convert world-space rotation to local
-          const parentWorldQ = new THREE.Quaternion();
-          bones.rightUpperArm.parent.getWorldQuaternion(parentWorldQ);
-          const parentWorldQInv = parentWorldQ.clone().invert();
-
-          // World-space Z axis rotation (arm raise/lower)
-          // π/2 brings arms from T-pose fully down to sides
-          const armDownOffset = Math.PI / 2;
-          const totalAngle = armDownOffset - c.rightArmAngle * (Math.PI / 2);
-
-          // Convert world Z rotation to parent-local space
-          const worldRotation = new THREE.Quaternion().setFromAxisAngle(axisZ, totalAngle);
-          const localRotation = parentWorldQInv.clone().multiply(worldRotation).multiply(parentWorldQ);
+        if (bones.rightUpperArm && initQ) {
+          // armAngle 0 = arms fully down, 1 = horizontal (T-pose level)
+          // We rotate by +(π/2) to bring from T-pose down, then subtract for raising
+          const downAngle = (Math.PI / 2) * (1 - c.rightArmAngle);
 
           tempQ.copy(initQ);
-          tempQ.premultiply(localRotation);
+          // Rotate around local Z to bring arm down
+          deltaQ.setFromAxisAngle(axisZ, downAngle);
+          tempQ.multiply(deltaQ);
 
-          // Forward movement (world X axis)
-          if (Math.abs(c.rightArmForward) > 0.001) {
-            const fwdWorld = new THREE.Quaternion().setFromAxisAngle(axisX, -c.rightArmForward * 0.8);
-            const fwdLocal = parentWorldQInv.clone().multiply(fwdWorld).multiply(parentWorldQ);
-            tempQ.premultiply(fwdLocal);
+          // Slight elbow bend when arms are down (natural pose)
+          const naturalBend = (1 - c.rightArmAngle) * 0.15;
+          if (naturalBend > 0.001) {
+            deltaQ.setFromAxisAngle(axisY, -naturalBend);
+            tempQ.multiply(deltaQ);
+          }
+
+          // Forward movement
+          if (Math.abs(c.rightArmForward) > 0.01) {
+            deltaQ.setFromAxisAngle(axisX, -c.rightArmForward * 0.8);
+            tempQ.multiply(deltaQ);
           }
 
           bones.rightUpperArm.quaternion.copy(tempQ);
         }
       }
-    }
-    applyQuat(bones.rightLowerArm, "rightLowerArm",
-      0, -c.rightForearmBend * 1.4, 0);
-    applyQuat(bones.rightHand, "rightHand",
-      c.rightWristTilt * 0.6, c.rightWristRotate * 0.8, 0);
 
-    // ── LEFT ARM (mirrored) ──
-    {
-      if (bones.leftUpperArm && bones.leftUpperArm.parent) {
+      applyQuat(bones.rightLowerArm, "rightLowerArm",
+        0, -c.rightForearmBend * 1.4, 0);
+      applyQuat(bones.rightHand, "rightHand",
+        c.rightWristTilt * 0.6, c.rightWristRotate * 0.8, 0);
+
+      // ── LEFT UPPER ARM (mirrored) ──
+      {
         const initQ = getInitQ("leftUpperArm");
-        if (initQ) {
-          const parentWorldQ = new THREE.Quaternion();
-          bones.leftUpperArm.parent.getWorldQuaternion(parentWorldQ);
-          const parentWorldQInv = parentWorldQ.clone().invert();
-
-          const armDownOffset = -Math.PI / 2;
-          const totalAngle = armDownOffset + c.leftArmAngle * (Math.PI / 2);
-
-          const worldRotation = new THREE.Quaternion().setFromAxisAngle(axisZ, totalAngle);
-          const localRotation = parentWorldQInv.clone().multiply(worldRotation).multiply(parentWorldQ);
+        if (bones.leftUpperArm && initQ) {
+          const downAngle = -(Math.PI / 2) * (1 - c.leftArmAngle);
 
           tempQ.copy(initQ);
-          tempQ.premultiply(localRotation);
+          deltaQ.setFromAxisAngle(axisZ, downAngle);
+          tempQ.multiply(deltaQ);
 
-          if (Math.abs(c.leftArmForward) > 0.001) {
-            const fwdWorld = new THREE.Quaternion().setFromAxisAngle(axisX, -c.leftArmForward * 0.8);
-            const fwdLocal = parentWorldQInv.clone().multiply(fwdWorld).multiply(parentWorldQ);
-            tempQ.premultiply(fwdLocal);
+          const naturalBend = (1 - c.leftArmAngle) * 0.15;
+          if (naturalBend > 0.001) {
+            deltaQ.setFromAxisAngle(axisY, naturalBend);
+            tempQ.multiply(deltaQ);
+          }
+
+          if (Math.abs(c.leftArmForward) > 0.01) {
+            deltaQ.setFromAxisAngle(axisX, -c.leftArmForward * 0.8);
+            tempQ.multiply(deltaQ);
           }
 
           bones.leftUpperArm.quaternion.copy(tempQ);
         }
       }
-    }
-    applyQuat(bones.leftLowerArm, "leftLowerArm",
-      0, c.leftForearmBend * 1.4, 0);
-    applyQuat(bones.leftHand, "leftHand",
-      c.leftWristTilt * 0.6, c.leftWristRotate * 0.8, 0);
 
-    // ── FINGERS — independent per-finger articulation ──
-    const applyFingerCurl = (
-      fingerBones: (THREE.Bone | null)[],
-      curl: number,
-      spread: number,
-      spreadDir: number,
-      isThumb: boolean = false
-    ) => {
-      fingerBones.forEach((bone, i) => {
-        if (!bone) return;
-        // Primary curl rotation
-        if (isThumb) {
-          // Thumb curls differently — more on X/Y axis
-          bone.rotation.z = curl * 0.8;
-          bone.rotation.x = curl * 0.4;
-        } else {
-          bone.rotation.z = curl * 1.2;
-        }
-        // Spread only on first knuckle bone
-        if (i === 0 && Math.abs(spread) > 0.001) {
-          bone.rotation.y = spread * spreadDir * 0.18;
-        }
-      });
-    };
+      applyQuat(bones.leftLowerArm, "leftLowerArm",
+        0, c.leftForearmBend * 1.4, 0);
+      applyQuat(bones.leftHand, "leftHand",
+        c.leftWristTilt * 0.6, c.leftWristRotate * 0.8, 0);
 
-    // Right hand — individual finger control
-    const rs = c.rightFingerSpread;
-    applyFingerCurl(bones.rightThumb, c.rightThumbCurl, rs, -1, true);
-    applyFingerCurl(bones.rightIndex, c.rightIndexCurl, rs, -0.6);
-    applyFingerCurl(bones.rightMiddle, c.rightMiddleCurl, rs, 0);
-    applyFingerCurl(bones.rightRing, c.rightRingCurl, rs, 0.6);
-    applyFingerCurl(bones.rightPinky, c.rightPinkyCurl, rs, 1.2);
-
-    // Left hand — mirrored direction
-    const ls = c.leftFingerSpread;
-    applyFingerCurl(bones.leftThumb, -c.leftThumbCurl, ls, 1, true);
-    applyFingerCurl(bones.leftIndex, -c.leftIndexCurl, ls, 0.6);
-    applyFingerCurl(bones.leftMiddle, -c.leftMiddleCurl, ls, 0);
-    applyFingerCurl(bones.leftRing, -c.leftRingCurl, ls, -0.6);
-    applyFingerCurl(bones.leftPinky, -c.leftPinkyCurl, ls, -1.2);
-
-    // ── FACIAL EXPRESSIONS via morph targets (ARKit) ──
-    if (morphMesh && morphMesh.morphTargetDictionary && morphMesh.morphTargetInfluences) {
-      const dict = morphMesh.morphTargetDictionary;
-      const influences = morphMesh.morphTargetInfluences;
-      const setMorph = (name: string, value: number) => {
-        if (dict[name] !== undefined) {
-          influences[dict[name]] = lerp(influences[dict[name]], value, t);
-        }
+      // ── FINGERS ──
+      const applyFingerCurl = (
+        fingerBones: (THREE.Bone | null)[],
+        curl: number,
+        spread: number,
+        spreadDir: number,
+        isThumb: boolean = false
+      ) => {
+        fingerBones.forEach((bone, i) => {
+          if (!bone) return;
+          if (isThumb) {
+            bone.rotation.z = curl * 0.8;
+            bone.rotation.x = curl * 0.4;
+          } else {
+            bone.rotation.z = curl * 1.2;
+          }
+          if (i === 0 && Math.abs(spread) > 0.001) {
+            bone.rotation.y = spread * spreadDir * 0.18;
+          }
+        });
       };
-      setMorph("jawOpen", c.mouthOpen * 0.8);
-      setMorph("mouthOpen", c.mouthOpen * 0.6);
-      setMorph("browInnerUp", c.eyebrowRaise);
-      setMorph("browOuterUpLeft", c.eyebrowRaise * 0.5);
-      setMorph("browOuterUpRight", c.eyebrowRaise * 0.5);
-      setMorph("mouthSmileLeft", c.eyebrowRaise * 0.2);
-      setMorph("mouthSmileRight", c.eyebrowRaise * 0.2);
-      setMorph("eyeWideLeft", c.eyebrowRaise * 0.3);
-      setMorph("eyeWideRight", c.eyebrowRaise * 0.3);
-    }
 
-    // ── SPINE — subtle lean + breathing ──
-    const spineInit0 = getInit("spine0");
-    if (bones.spine[0] && spineInit0) {
-      const armActivity = Math.max(c.rightArmAngle, c.leftArmAngle) * 0.03;
-      bones.spine[0].rotation.x = spineInit0.x + armActivity;
-    }
-    const spineInit1 = getInit("spine1");
-    if (bones.spine[1] && spineInit1) {
-      bones.spine[1].rotation.x = spineInit1.x + Math.sin(state.clock.elapsedTime * 0.8) * 0.008;
-    }
-  });
+      const rs = c.rightFingerSpread;
+      applyFingerCurl(bones.rightThumb, c.rightThumbCurl, rs, -1, true);
+      applyFingerCurl(bones.rightIndex, c.rightIndexCurl, rs, -0.6);
+      applyFingerCurl(bones.rightMiddle, c.rightMiddleCurl, rs, 0);
+      applyFingerCurl(bones.rightRing, c.rightRingCurl, rs, 0.6);
+      applyFingerCurl(bones.rightPinky, c.rightPinkyCurl, rs, 1.2);
 
-  return (
-    <group ref={groupRef} position={[0, -0.95, 0]} scale={1}>
-      <primitive object={clonedScene} />
-    </group>
-  );
-}
+      const ls = c.leftFingerSpread;
+      applyFingerCurl(bones.leftThumb, -c.leftThumbCurl, ls, 1, true);
+      applyFingerCurl(bones.leftIndex, -c.leftIndexCurl, ls, 0.6);
+      applyFingerCurl(bones.leftMiddle, -c.leftMiddleCurl, ls, 0);
+      applyFingerCurl(bones.leftRing, -c.leftRingCurl, ls, -0.6);
+      applyFingerCurl(bones.leftPinky, -c.leftPinkyCurl, ls, -1.2);
+
+      // ── FACIAL EXPRESSIONS ──
+      if (morphMesh && morphMesh.morphTargetDictionary && morphMesh.morphTargetInfluences) {
+        const dict = morphMesh.morphTargetDictionary;
+        const influences = morphMesh.morphTargetInfluences;
+        const setMorph = (name: string, value: number) => {
+          if (dict[name] !== undefined) {
+            influences[dict[name]] = lerp(influences[dict[name]], value, t);
+          }
+        };
+        setMorph("jawOpen", c.mouthOpen * 0.8);
+        setMorph("mouthOpen", c.mouthOpen * 0.6);
+        setMorph("browInnerUp", c.eyebrowRaise);
+        setMorph("browOuterUpLeft", c.eyebrowRaise * 0.5);
+        setMorph("browOuterUpRight", c.eyebrowRaise * 0.5);
+        setMorph("mouthSmileLeft", c.eyebrowRaise * 0.2);
+        setMorph("mouthSmileRight", c.eyebrowRaise * 0.2);
+        setMorph("eyeWideLeft", c.eyebrowRaise * 0.3);
+        setMorph("eyeWideRight", c.eyebrowRaise * 0.3);
+      }
+
+      // ── SPINE — subtle breathing ──
+      const spineInit0 = getInit("spine0");
+      if (bones.spine[0] && spineInit0) {
+        const armActivity = Math.max(c.rightArmAngle, c.leftArmAngle) * 0.03;
+        bones.spine[0].rotation.x = spineInit0.x + armActivity;
+      }
+      const spineInit1 = getInit("spine1");
+      if (bones.spine[1] && spineInit1) {
+        bones.spine[1].rotation.x = spineInit1.x + Math.sin(state.clock.elapsedTime * 0.8) * 0.008;
+      }
+    });
+
+    return (
+      <group ref={groupRef} position={[0, -0.95, 0]} scale={1}>
+        <primitive object={clonedScene} />
+      </group>
+    );
+  }
+);
 
 // ─── Main export ──────────────────────────────────────────
-interface Avatar3DProps {
+export interface Avatar3DProps {
   pose: AvatarPose | null;
   label?: string;
+  useProceduralPose?: boolean;
+  onAvatarReady?: (handle: AvatarHandle) => void;
 }
 
-export default function Avatar3D({ pose, label }: Avatar3DProps) {
+export default function Avatar3D({ pose, label, useProceduralPose = true, onAvatarReady }: Avatar3DProps) {
   const activePose = pose || REST_POSE;
+  const avatarRef = useRef<AvatarHandle>(null);
+
+  // Notify parent when avatar handle is available
+  useEffect(() => {
+    if (avatarRef.current && onAvatarReady) {
+      onAvatarReady(avatarRef.current);
+    }
+  }, [onAvatarReady]);
 
   return (
     <div className="relative w-full h-full">
@@ -406,7 +459,11 @@ export default function Avatar3D({ pose, label }: Avatar3DProps) {
         <directionalLight position={[2, 4, 4]} intensity={1.4} castShadow />
         <directionalLight position={[-2, 3, 2]} intensity={0.4} color="#88ccff" />
         <pointLight position={[0, 2, 3]} intensity={0.4} color="#ffddaa" />
-        <AnimatedAvatar pose={activePose} />
+        <AnimatedAvatarInner
+          ref={avatarRef}
+          pose={activePose}
+          useProceduralPose={useProceduralPose}
+        />
         <OrbitControls
           enablePan={false}
           enableZoom={false}
@@ -424,4 +481,5 @@ export default function Avatar3D({ pose, label }: Avatar3DProps) {
   );
 }
 
+export { REST_POSE };
 useGLTF.preload(MODEL_URL);
