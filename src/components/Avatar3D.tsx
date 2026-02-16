@@ -345,7 +345,7 @@ const AnimatedAvatarInner = forwardRef<AvatarHandle, AnimatedAvatarProps>(
           const targetDir = new THREE.Vector3(
             -c.rightArmAngle,
             -(1 - c.rightArmAngle),
-            -c.rightArmForward * 0.6
+            c.rightArmForward * 0.6 + 0.15
           ).normalize();
 
           // World-space rotation from T-pose to desired
@@ -363,7 +363,7 @@ const AnimatedAvatarInner = forwardRef<AvatarHandle, AnimatedAvatarProps>(
       }
 
       applyEuler(bones.rightLowerArm, "rightLowerArm",
-        0, -c.rightForearmBend * 1.4, 0);
+        c.rightForearmBend * 1.4, 0, 0);
       applyEuler(bones.rightHand, "rightHand",
         c.rightWristTilt * 0.6, c.rightWristRotate * 0.8, 0);
 
@@ -377,7 +377,7 @@ const AnimatedAvatarInner = forwardRef<AvatarHandle, AnimatedAvatarProps>(
           const targetDir = new THREE.Vector3(
             c.leftArmAngle,
             -(1 - c.leftArmAngle),
-            -c.leftArmForward * 0.6
+            c.leftArmForward * 0.6 + 0.15
           ).normalize();
 
           const worldRotDelta = new THREE.Quaternion().setFromUnitVectors(tposeDir, targetDir);
@@ -390,7 +390,7 @@ const AnimatedAvatarInner = forwardRef<AvatarHandle, AnimatedAvatarProps>(
       }
 
       applyEuler(bones.leftLowerArm, "leftLowerArm",
-        0, c.leftForearmBend * 1.4, 0);
+        -c.leftForearmBend * 1.4, 0, 0);
       applyEuler(bones.leftHand, "leftHand",
         c.leftWristTilt * 0.6, c.leftWristRotate * 0.8, 0);
 
