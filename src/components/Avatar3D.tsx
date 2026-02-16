@@ -89,6 +89,7 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
   }, [skeleton]);
 
   // Store initial bind-pose quaternions
+  const initialQuaternions = useRef<Map<string, THREE.Quaternion>>(new Map());
   const initialRotations = useRef<Map<string, THREE.Euler>>(new Map());
   const initialized = useRef(false);
 
@@ -119,7 +120,10 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
   useEffect(() => {
     if (!bones || initialized.current) return;
     const store = (name: string, bone: THREE.Bone | null) => {
-      if (bone) initialRotations.current.set(name, bone.rotation.clone());
+      if (bone) {
+        initialRotations.current.set(name, bone.rotation.clone());
+        initialQuaternions.current.set(name, bone.quaternion.clone());
+      }
     };
     store("head", bones.head);
     store("neck", bones.neck);
@@ -134,7 +138,14 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
   }, [bones]);
 
   const getInit = (name: string) => initialRotations.current.get(name);
+  const getInitQ = (name: string) => initialQuaternions.current.get(name);
 
+  // Temp quaternions for calculations
+  const tempQ = useMemo(() => new THREE.Quaternion(), []);
+  const deltaQ = useMemo(() => new THREE.Quaternion(), []);
+  const axisX = useMemo(() => new THREE.Vector3(1, 0, 0), []);
+  const axisY = useMemo(() => new THREE.Vector3(0, 1, 0), []);
+  const axisZ = useMemo(() => new THREE.Vector3(0, 0, 1), []);
   useFrame((state, delta) => {
     if (!bones || !initialized.current) return;
     const speed = 10;
@@ -159,61 +170,54 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
     c.mouthOpen = lerp(c.mouthOpen, pose.mouthOpen, delta * speed);
     c.eyebrowRaise = lerp(c.eyebrowRaise, pose.eyebrowRaise, delta * speed);
 
-    // ── HEAD — very subtle offsets from bind pose ──
+    // ── HEAD — small Euler offsets are fine for head ──
     const headInit = getInit("head");
     if (bones.head && headInit) {
-      bones.head.rotation.x = headInit.x + c.headNod * 0.1;
+      bones.head.rotation.x = headInit.x + c.headNod * 0.12;
       bones.head.rotation.y = headInit.y + c.headTurn * 0.15;
       bones.head.rotation.z = headInit.z + c.headTilt * 0.08;
     }
 
-    // ── RIGHT ARM ──
-    const rArmInit = getInit("rightUpperArm");
-    if (bones.rightUpperArm && rArmInit) {
-      // armAngle 0 = bind pose (no change), higher = raise arm
-      // Use small additive offsets from bind pose only
-      const raiseAmount = Math.max(0, Math.min(c.rightArmAngle, 0.85)) * 0.12;
-      bones.rightUpperArm.rotation.set(
-        rArmInit.x - c.rightArmForward * 0.03,
-        rArmInit.y - c.rightArmSpread * 0.03,
-        rArmInit.z - raiseAmount  // negative Z raises right arm
-      );
-    }
-    const rForeInit = getInit("rightLowerArm");
-    if (bones.rightLowerArm && rForeInit) {
-      bones.rightLowerArm.rotation.set(
-        rForeInit.x,
-        rForeInit.y - c.rightForearmBend * 0.3,
-        rForeInit.z
-      );
-    }
-    const rHandInit = getInit("rightHand");
-    if (bones.rightHand && rHandInit) {
-      bones.rightHand.rotation.x = rHandInit.x + c.rightWristTilt * 0.15;
-    }
+    // Helper: apply quaternion-based rotation offset to a bone
+    // This avoids gimbal lock and Euler order issues
+    const applyQuat = (bone: THREE.Bone | null, name: string, rx: number, ry: number, rz: number) => {
+      const initQ = getInitQ(name);
+      if (!bone || !initQ) return;
+      // Start from bind pose quaternion
+      tempQ.copy(initQ);
+      // Apply small local rotations via quaternion multiplication
+      if (Math.abs(rx) > 0.001) {
+        deltaQ.setFromAxisAngle(axisX, rx);
+        tempQ.premultiply(deltaQ);
+      }
+      if (Math.abs(ry) > 0.001) {
+        deltaQ.setFromAxisAngle(axisY, ry);
+        tempQ.premultiply(deltaQ);
+      }
+      if (Math.abs(rz) > 0.001) {
+        deltaQ.setFromAxisAngle(axisZ, rz);
+        tempQ.premultiply(deltaQ);
+      }
+      bone.quaternion.copy(tempQ);
+    };
+
+    // ── RIGHT ARM — very small upper arm, rely on forearm for visibility ──
+    const raiseR = Math.max(0, Math.min(c.rightArmAngle, 1.0)) * 0.03;
+    applyQuat(bones.rightUpperArm, "rightUpperArm",
+      -c.rightArmForward * 0.02, -c.rightArmSpread * 0.02, -raiseR);
+    applyQuat(bones.rightLowerArm, "rightLowerArm",
+      0, -c.rightForearmBend * 0.5, 0);
+    applyQuat(bones.rightHand, "rightHand",
+      c.rightWristTilt * 0.2, 0, 0);
 
     // ── LEFT ARM ──
-    const lArmInit = getInit("leftUpperArm");
-    if (bones.leftUpperArm && lArmInit) {
-      const raiseAmount = Math.max(0, Math.min(c.leftArmAngle, 0.85)) * 0.12;
-      bones.leftUpperArm.rotation.set(
-        lArmInit.x - c.leftArmForward * 0.03,
-        lArmInit.y + c.leftArmSpread * 0.03,
-        lArmInit.z + raiseAmount  // positive Z raises left arm
-      );
-    }
-    const lForeInit = getInit("leftLowerArm");
-    if (bones.leftLowerArm && lForeInit) {
-      bones.leftLowerArm.rotation.set(
-        lForeInit.x,
-        lForeInit.y + c.leftForearmBend * 0.3,
-        lForeInit.z
-      );
-    }
-    const lHandInit = getInit("leftHand");
-    if (bones.leftHand && lHandInit) {
-      bones.leftHand.rotation.x = lHandInit.x + c.leftWristTilt * 0.15;
-    }
+    const raiseL = Math.max(0, Math.min(c.leftArmAngle, 1.0)) * 0.03;
+    applyQuat(bones.leftUpperArm, "leftUpperArm",
+      -c.leftArmForward * 0.02, c.leftArmSpread * 0.02, raiseL);
+    applyQuat(bones.leftLowerArm, "leftLowerArm",
+      0, c.leftForearmBend * 0.5, 0);
+    applyQuat(bones.leftHand, "leftHand",
+      c.leftWristTilt * 0.2, 0, 0);
 
     // ── FINGERS — curl based on handPose ──
     const fingerCurl = c.rightHandPose * 1.2;
@@ -283,7 +287,7 @@ export default function Avatar3D({ pose, label }: Avatar3DProps) {
   return (
     <div className="relative w-full h-full">
       <Canvas
-        camera={{ position: [0, 0.3, 4], fov: 30 }}
+        camera={{ position: [0, 0.2, 5], fov: 35 }}
         dpr={[1, 2]}
         gl={{ antialias: true, alpha: true }}
         style={{ background: "transparent" }}
@@ -295,10 +299,10 @@ export default function Avatar3D({ pose, label }: Avatar3DProps) {
         <AnimatedAvatar pose={activePose} />
         <OrbitControls
           enablePan={false}
-          enableZoom={true}
+          enableZoom={false}
           enableRotate={false}
-          minDistance={2}
-          maxDistance={5}
+          minDistance={4}
+          maxDistance={6}
           target={[0, 0.5, 0]}
           autoRotate={false}
         />
