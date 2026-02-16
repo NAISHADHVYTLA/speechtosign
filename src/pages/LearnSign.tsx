@@ -49,7 +49,7 @@ export default function LearnSign() {
     <div className="flex-1 flex flex-col lg:flex-row min-h-[calc(100vh-57px)]">
       {/* Left Panel - Word List */}
       <div className="lg:w-80 xl:w-96 border-r border-border/40 p-5 overflow-y-auto">
-        <h2 className="font-display font-bold text-lg text-foreground mb-4">Learn ISL Signs</h2>
+        <h2 className="font-display font-bold text-lg text-foreground mb-4">Learn ASL Signs</h2>
         
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

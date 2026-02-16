@@ -238,16 +238,16 @@ export default function Convert() {
 
         {/* Supported Words Info */}
         <div className="mt-auto glass-card p-4">
-          <h4 className="font-display font-semibold text-sm text-foreground mb-2">Supported ISL Words</h4>
+        <h4 className="font-display font-semibold text-sm text-foreground mb-2">Supported ASL Words</h4>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            80+ ISL words including: namaste, dhanyavaad, haan, nahin, kripya, madad, pyaar, khush, dukhi, numbers 1-10, colors, emotions, family terms, and more. Unknown words are finger-spelled.
+            80+ ASL words including: hello, thank you, yes, no, please, help, love, happy, sad, numbers 1-10, colors, emotions, family terms, and more. Unknown words are finger-spelled.
           </p>
         </div>
       </div>
 
       {/* Footer */}
       <div className="fixed bottom-0 left-0 right-0 bg-primary text-primary-foreground text-center py-2 text-sm z-40">
-        Indian Sign Language (ISL) Converter — 80+ words supported
+        American Sign Language (ASL) Converter — 80+ words supported
       </div>
     </div>
   );
