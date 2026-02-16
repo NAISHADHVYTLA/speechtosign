@@ -46,16 +46,16 @@ export interface AvatarPose {
 }
 
 const REST_POSE: AvatarPose = {
-  rightArmAngle: 0, rightArmForward: 0, rightArmSpread: 0,
-  rightForearmBend: 0.15, rightHandPose: 0.1, rightWristTilt: 0,
-  leftArmAngle: 0, leftArmForward: 0, leftArmSpread: 0,
-  leftForearmBend: 0.15, leftHandPose: 0.1, leftWristTilt: 0,
+  rightArmAngle: -0.1, rightArmForward: 0, rightArmSpread: 0,
+  rightForearmBend: 0.05, rightHandPose: 0.05, rightWristTilt: 0,
+  leftArmAngle: -0.1, leftArmForward: 0, leftArmSpread: 0,
+  leftForearmBend: 0.05, leftHandPose: 0.05, leftWristTilt: 0,
   headNod: 0, headTilt: 0, headTurn: 0,
   mouthOpen: 0, eyebrowRaise: 0,
-  rightThumbCurl: 0.1, rightIndexCurl: 0.15, rightMiddleCurl: 0.15, rightRingCurl: 0.2, rightPinkyCurl: 0.2,
-  rightFingerSpread: 0.2,
-  leftThumbCurl: 0.1, leftIndexCurl: 0.15, leftMiddleCurl: 0.15, leftRingCurl: 0.2, leftPinkyCurl: 0.2,
-  leftFingerSpread: 0.2,
+  rightThumbCurl: 0.05, rightIndexCurl: 0.05, rightMiddleCurl: 0.05, rightRingCurl: 0.08, rightPinkyCurl: 0.08,
+  rightFingerSpread: 0.05,
+  leftThumbCurl: 0.05, leftIndexCurl: 0.05, leftMiddleCurl: 0.05, leftRingCurl: 0.08, leftPinkyCurl: 0.08,
+  leftFingerSpread: 0.05,
 };
 
 export interface WordSign {
