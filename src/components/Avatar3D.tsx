@@ -44,7 +44,17 @@ const BONE_NAMES = {
 
 function findBone(skeleton: THREE.Skeleton | null, partialName: string): THREE.Bone | null {
   if (!skeleton) return null;
-  return skeleton.bones.find((b) => b.name.includes(partialName)) || null;
+  // Prefer exact match first, then endsWith, then includes as last resort
+  return (
+    skeleton.bones.find((b) => b.name === partialName) ||
+    skeleton.bones.find((b) => b.name.endsWith(partialName)) ||
+    skeleton.bones.find((b) => {
+      // Only match if partialName is at a word boundary (avoid "RightArm" matching "RightForeArm")
+      const idx = b.name.indexOf(partialName);
+      return idx >= 0 && (idx + partialName.length === b.name.length);
+    }) ||
+    null
+  );
 }
 
 // ─── Mixer-based avatar for GLB animation clips ──────────────
@@ -69,6 +79,15 @@ const AnimatedAvatarInner = forwardRef<AvatarHandle, AnimatedAvatarProps>(
     // Create mixer
     useEffect(() => {
       mixerRef.current = new THREE.AnimationMixer(clonedScene);
+      
+      // Log bone names for debugging
+      clonedScene.traverse((child) => {
+        if ((child as THREE.SkinnedMesh).isSkinnedMesh) {
+          const skel = (child as THREE.SkinnedMesh).skeleton;
+          console.log("[Avatar3D] Bone names:", skel.bones.map(b => b.name).join(", "));
+        }
+      });
+      
       return () => {
         mixerRef.current?.stopAllAction();
         mixerRef.current = null;
@@ -105,7 +124,7 @@ const AnimatedAvatarInner = forwardRef<AvatarHandle, AnimatedAvatarProps>(
           mixer.addEventListener("finished", onFinished);
         });
       },
-    }), []);
+    }), [clonedScene]);
 
     const skeleton = useMemo(() => {
       let skel: THREE.Skeleton | null = null;
@@ -174,9 +193,13 @@ const AnimatedAvatarInner = forwardRef<AvatarHandle, AnimatedAvatarProps>(
       return mesh;
     }, [clonedScene]);
 
-    // Save bind-pose rotations
+    // Save bind-pose rotations (reset on bones change)
     useEffect(() => {
-      if (!bones || initialized.current) return;
+      if (!bones) return;
+      initialized.current = false;
+      initialRotations.current.clear();
+      initialQuaternions.current.clear();
+
       const store = (name: string, bone: THREE.Bone | null) => {
         if (bone) {
           initialRotations.current.set(name, bone.rotation.clone());
@@ -194,6 +217,17 @@ const AnimatedAvatarInner = forwardRef<AvatarHandle, AnimatedAvatarProps>(
       store("leftLowerArm", bones.leftLowerArm);
       store("leftHand", bones.leftHand);
       bones.spine.forEach((b, i) => store(`spine${i}`, b));
+
+      // Debug: log which bones were found
+      console.log("[Avatar3D] Bones found:", {
+        rightUpperArm: bones.rightUpperArm?.name || "NOT FOUND",
+        leftUpperArm: bones.leftUpperArm?.name || "NOT FOUND",
+        rightLowerArm: bones.rightLowerArm?.name || "NOT FOUND",
+        leftLowerArm: bones.leftLowerArm?.name || "NOT FOUND",
+        rightHand: bones.rightHand?.name || "NOT FOUND",
+        leftHand: bones.leftHand?.name || "NOT FOUND",
+      });
+
       initialized.current = true;
     }, [bones]);
 
