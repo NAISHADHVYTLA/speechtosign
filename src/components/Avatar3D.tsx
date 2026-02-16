@@ -166,6 +166,7 @@ const AnimatedAvatarInner = forwardRef<AvatarHandle, AnimatedAvatarProps>(
 
     const initialQuaternions = useRef<Map<string, THREE.Quaternion>>(new Map());
     const initialRotations = useRef<Map<string, THREE.Euler>>(new Map());
+    const bindWorldQuaternions = useRef<Map<string, THREE.Quaternion>>(new Map());
     const initialized = useRef(false);
 
     const current = useRef({
@@ -199,6 +200,7 @@ const AnimatedAvatarInner = forwardRef<AvatarHandle, AnimatedAvatarProps>(
       initialized.current = false;
       initialRotations.current.clear();
       initialQuaternions.current.clear();
+      bindWorldQuaternions.current.clear();
 
       const store = (name: string, bone: THREE.Bone | null) => {
         if (bone) {
@@ -218,23 +220,30 @@ const AnimatedAvatarInner = forwardRef<AvatarHandle, AnimatedAvatarProps>(
       store("leftHand", bones.leftHand);
       bones.spine.forEach((b, i) => store(`spine${i}`, b));
 
-      // Debug: log bone info including bind-pose rotations
-      const logBone = (name: string, bone: THREE.Bone | null) => {
-        if (!bone) return `${name}: NOT FOUND`;
-        const r = bone.rotation;
-        const wp = new THREE.Vector3();
-        bone.getWorldPosition(wp);
-        const wd = new THREE.Vector3(0, 1, 0);
-        wd.applyQuaternion(bone.getWorldQuaternion(new THREE.Quaternion()));
-        return `${name}(${bone.name}): rot(${r.x.toFixed(3)},${r.y.toFixed(3)},${r.z.toFixed(3)}) worldPos(${wp.x.toFixed(2)},${wp.y.toFixed(2)},${wp.z.toFixed(2)}) boneDir(${wd.x.toFixed(2)},${wd.y.toFixed(2)},${wd.z.toFixed(2)})`;
-      };
-      console.log("[Avatar3D] Bind-pose info:\n" +
-        logBone("rightUpperArm", bones.rightUpperArm) + "\n" +
-        logBone("leftUpperArm", bones.leftUpperArm) + "\n" +
-        logBone("rightLowerArm", bones.rightLowerArm) + "\n" +
-        logBone("leftLowerArm", bones.leftLowerArm)
-      );
+      // Store bind-pose WORLD quaternions for arm parents (shoulder bones)
+      // These are needed for world-to-local conversion that doesn't depend on frame modifications
+      if (bones.rightUpperArm) {
+        const wq = new THREE.Quaternion();
+        bones.rightUpperArm.getWorldQuaternion(wq);
+        bindWorldQuaternions.current.set("rightUpperArm_world", wq);
+        if (bones.rightUpperArm.parent) {
+          const pq = new THREE.Quaternion();
+          bones.rightUpperArm.parent.getWorldQuaternion(pq);
+          bindWorldQuaternions.current.set("rightUpperArm_parentWorld", pq);
+        }
+      }
+      if (bones.leftUpperArm) {
+        const wq = new THREE.Quaternion();
+        bones.leftUpperArm.getWorldQuaternion(wq);
+        bindWorldQuaternions.current.set("leftUpperArm_world", wq);
+        if (bones.leftUpperArm.parent) {
+          const pq = new THREE.Quaternion();
+          bones.leftUpperArm.parent.getWorldQuaternion(pq);
+          bindWorldQuaternions.current.set("leftUpperArm_parentWorld", pq);
+        }
+      }
 
+      console.log("[Avatar3D] Init complete. Bind-pose world quats stored.");
       initialized.current = true;
     }, [bones]);
 
@@ -323,38 +332,33 @@ const AnimatedAvatarInner = forwardRef<AvatarHandle, AnimatedAvatarProps>(
         -c.leftArmForward * 0.08, 0, shoulderLiftL);
 
       // ── RIGHT UPPER ARM ──
-      // Bone Y-axis points (-1,0,0) in T-pose (world space). We want it to point
-      // toward (0,-1,0) when armAngle=0 (down) and (-1,0,0) when armAngle=1 (T-pose).
+      // Strategy: compute desired WORLD quaternion, then convert to local
+      // using the BIND-POSE parent world quaternion (not the modified one)
       {
-        if (bones.rightUpperArm) {
-          // Interpolate target direction between down and T-pose
-          const tposeDir = new THREE.Vector3(-1, 0, 0); // bind pose direction
-          const downDir = new THREE.Vector3(
-            -c.rightArmAngle,                           // horizontal component
-            -(1 - c.rightArmAngle),                     // vertical (down) component
-            -c.rightArmForward * 0.6                    // forward component
+        const initQ = getInitQ("rightUpperArm");
+        const bindWorldQ = bindWorldQuaternions.current.get("rightUpperArm_world");
+        const bindParentWorldQ = bindWorldQuaternions.current.get("rightUpperArm_parentWorld");
+        if (bones.rightUpperArm && initQ && bindWorldQ && bindParentWorldQ) {
+          // T-pose bone direction in world: (-1, 0, 0)
+          // Desired direction: interpolate between (-1,0,0) and (0,-1,0) based on armAngle
+          const tposeDir = new THREE.Vector3(-1, 0, 0);
+          const targetDir = new THREE.Vector3(
+            -c.rightArmAngle,
+            -(1 - c.rightArmAngle),
+            -c.rightArmForward * 0.6
           ).normalize();
 
-          // Quaternion that rotates from T-pose direction to target direction
-          const rotDelta = new THREE.Quaternion().setFromUnitVectors(tposeDir, downDir);
+          // World-space rotation from T-pose to desired
+          const worldRotDelta = new THREE.Quaternion().setFromUnitVectors(tposeDir, targetDir);
 
-          // Get parent world quaternion to convert world rotation to local
-          const parentWorldQ = new THREE.Quaternion();
-          bones.rightUpperArm.parent?.getWorldQuaternion(parentWorldQ);
-          const parentInv = parentWorldQ.clone().invert();
+          // Desired world quaternion = worldRotDelta * bindWorldQ
+          const desiredWorldQ = new THREE.Quaternion().copy(worldRotDelta).multiply(bindWorldQ);
 
-          // Convert world-space delta to parent-local delta: parentInv * rotDelta * parent
-          const localDelta = new THREE.Quaternion()
-            .copy(parentInv)
-            .multiply(rotDelta)
-            .multiply(parentWorldQ);
+          // Convert to local: local = parentWorldInv * world
+          const parentInv = bindParentWorldQ.clone().invert();
+          const desiredLocalQ = new THREE.Quaternion().copy(parentInv).multiply(desiredWorldQ);
 
-          // Apply: new_local = localDelta * bindPose_local
-          const initQ = getInitQ("rightUpperArm");
-          if (initQ) {
-            tempQ.copy(localDelta).multiply(initQ);
-            bones.rightUpperArm.quaternion.copy(tempQ);
-          }
+          bones.rightUpperArm.quaternion.copy(desiredLocalQ);
         }
       }
 
@@ -365,30 +369,23 @@ const AnimatedAvatarInner = forwardRef<AvatarHandle, AnimatedAvatarProps>(
 
       // ── LEFT UPPER ARM (mirrored) ──
       {
-        if (bones.leftUpperArm) {
-          const tposeDir = new THREE.Vector3(1, 0, 0); // bind pose direction (left arm)
-          const downDir = new THREE.Vector3(
+        const initQ = getInitQ("leftUpperArm");
+        const bindWorldQ = bindWorldQuaternions.current.get("leftUpperArm_world");
+        const bindParentWorldQ = bindWorldQuaternions.current.get("leftUpperArm_parentWorld");
+        if (bones.leftUpperArm && initQ && bindWorldQ && bindParentWorldQ) {
+          const tposeDir = new THREE.Vector3(1, 0, 0);
+          const targetDir = new THREE.Vector3(
             c.leftArmAngle,
             -(1 - c.leftArmAngle),
             -c.leftArmForward * 0.6
           ).normalize();
 
-          const rotDelta = new THREE.Quaternion().setFromUnitVectors(tposeDir, downDir);
+          const worldRotDelta = new THREE.Quaternion().setFromUnitVectors(tposeDir, targetDir);
+          const desiredWorldQ = new THREE.Quaternion().copy(worldRotDelta).multiply(bindWorldQ);
+          const parentInv = bindParentWorldQ.clone().invert();
+          const desiredLocalQ = new THREE.Quaternion().copy(parentInv).multiply(desiredWorldQ);
 
-          const parentWorldQ = new THREE.Quaternion();
-          bones.leftUpperArm.parent?.getWorldQuaternion(parentWorldQ);
-          const parentInv = parentWorldQ.clone().invert();
-
-          const localDelta = new THREE.Quaternion()
-            .copy(parentInv)
-            .multiply(rotDelta)
-            .multiply(parentWorldQ);
-
-          const initQ = getInitQ("leftUpperArm");
-          if (initQ) {
-            tempQ.copy(localDelta).multiply(initQ);
-            bones.leftUpperArm.quaternion.copy(tempQ);
-          }
+          bones.leftUpperArm.quaternion.copy(desiredLocalQ);
         }
       }
 
