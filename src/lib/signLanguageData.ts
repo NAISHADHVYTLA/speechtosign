@@ -580,6 +580,96 @@ export const COMMON_WORDS: Record<string, WordSign> = {
       { ...REST_POSE, rightArmAngle: 1.0, rightArmForward: 0.4, rightForearmBend: 0.3, rightHandPose: 0 },
     ],
   },
+  ok: {
+    type: "gesture", label: "OK",
+    description: "Thumb and index form circle, other fingers up",
+    poses: [
+      { ...REST_POSE, rightArmAngle: 0.7, rightArmForward: 0.5, rightForearmBend: 0.4, rightHandPose: 0.6, eyebrowRaise: 0.3, mouthOpen: 0.1 },
+    ],
+  },
+  who: {
+    type: "gesture", label: "WHO",
+    description: "Index finger circles near lips",
+    poses: [
+      { ...REST_POSE, rightArmAngle: 0.85, rightArmForward: 0.25, rightForearmBend: 0.8, rightHandPose: 0.2, mouthOpen: 0.3, eyebrowRaise: 0.6 },
+      { ...REST_POSE, rightArmAngle: 0.85, rightArmForward: 0.25, rightArmSpread: 0.1, rightForearmBend: 0.8, rightHandPose: 0.2, mouthOpen: 0.3, eyebrowRaise: 0.6 },
+    ],
+  },
+  one: {
+    type: "gesture", label: "1",
+    description: "Index finger up",
+    poses: [
+      { ...REST_POSE, rightArmAngle: 0.7, rightArmForward: 0.5, rightForearmBend: 0.5, rightHandPose: 0.2 },
+    ],
+  },
+  two: {
+    type: "gesture", label: "2",
+    description: "Peace sign — index and middle fingers up",
+    poses: [
+      { ...REST_POSE, rightArmAngle: 0.7, rightArmForward: 0.5, rightForearmBend: 0.5, rightHandPose: 0.15 },
+    ],
+  },
+  three: {
+    type: "gesture", label: "3",
+    description: "Thumb, index, and middle fingers up",
+    poses: [
+      { ...REST_POSE, rightArmAngle: 0.7, rightArmForward: 0.5, rightForearmBend: 0.5, rightHandPose: 0.1 },
+    ],
+  },
+  four: {
+    type: "gesture", label: "4",
+    description: "Four fingers up, thumb tucked",
+    poses: [
+      { ...REST_POSE, rightArmAngle: 0.7, rightArmForward: 0.5, rightForearmBend: 0.5, rightHandPose: 0.05 },
+    ],
+  },
+  five: {
+    type: "gesture", label: "5",
+    description: "All fingers spread open",
+    poses: [
+      { ...REST_POSE, rightArmAngle: 0.7, rightArmForward: 0.5, rightForearmBend: 0.5, rightHandPose: 0 },
+    ],
+  },
+  angry: {
+    type: "gesture", label: "ANGRY",
+    description: "Claw hands pull away from face",
+    poses: [
+      { ...REST_POSE, rightArmAngle: 0.9, rightArmForward: 0.3, rightForearmBend: 0.7, rightHandPose: 0.4, leftArmAngle: 0.9, leftArmForward: 0.3, leftForearmBend: 0.7, leftHandPose: 0.4, eyebrowRaise: 0.8, mouthOpen: 0.2 },
+      { ...REST_POSE, rightArmAngle: 0.7, rightArmForward: 0.5, rightForearmBend: 0.5, rightHandPose: 0.6, leftArmAngle: 0.7, leftArmForward: 0.5, leftForearmBend: 0.5, leftHandPose: 0.6, eyebrowRaise: 0.9 },
+    ],
+  },
+  hungry: {
+    type: "gesture", label: "HUNGRY",
+    description: "C-hand moves down from throat to stomach",
+    poses: [
+      { ...REST_POSE, rightArmAngle: 0.7, rightArmForward: 0.2, rightForearmBend: 0.7, rightHandPose: 0.5, mouthOpen: 0.2 },
+      { ...REST_POSE, rightArmAngle: 0.3, rightArmForward: 0.2, rightForearmBend: 0.5, rightHandPose: 0.5, mouthOpen: 0.1 },
+    ],
+  },
+  tired: {
+    type: "gesture", label: "TIRED",
+    description: "Bent hands drop from chest",
+    poses: [
+      { ...REST_POSE, rightArmAngle: 0.5, rightArmForward: 0.3, rightForearmBend: 0.6, rightHandPose: 0.4, leftArmAngle: 0.5, leftArmForward: 0.3, leftForearmBend: 0.6, leftHandPose: 0.4, headNod: -0.1 },
+      { ...REST_POSE, rightArmAngle: 0.3, rightArmForward: 0.3, rightForearmBend: 0.5, rightHandPose: 0.4, leftArmAngle: 0.3, leftArmForward: 0.3, leftForearmBend: 0.5, leftHandPose: 0.4, headNod: -0.3 },
+    ],
+  },
+  beautiful: {
+    type: "gesture", label: "BEAUTIFUL",
+    description: "Open hand circles face then closes",
+    poses: [
+      { ...REST_POSE, rightArmAngle: 0.9, rightArmForward: 0.3, rightForearmBend: 0.8, rightHandPose: 0, eyebrowRaise: 0.4, mouthOpen: 0.2 },
+      { ...REST_POSE, rightArmAngle: 0.9, rightArmForward: 0.3, rightArmSpread: 0.2, rightForearmBend: 0.8, rightHandPose: 0.8, eyebrowRaise: 0.5 },
+    ],
+  },
+  again: {
+    type: "gesture", label: "AGAIN",
+    description: "Bent hand arcs into flat palm",
+    poses: [
+      { ...REST_POSE, rightArmAngle: 0.6, rightArmForward: 0.5, rightForearmBend: 0.4, rightHandPose: 0.4, leftArmAngle: 0.5, leftArmForward: 0.5, leftForearmBend: 0.3, leftHandPose: 0 },
+      { ...REST_POSE, rightArmAngle: 0.5, rightArmForward: 0.5, rightForearmBend: 0.5, rightHandPose: 0.4, leftArmAngle: 0.5, leftArmForward: 0.5, leftForearmBend: 0.3, leftHandPose: 0 },
+    ],
+  },
 };
 
 export function getSignForWord(word: string): WordSign {
