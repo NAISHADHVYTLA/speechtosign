@@ -234,6 +234,7 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
 
     // ── ARMS — world-space rotation approach ──
     // armAngle: 0=arms at sides, 1=signing/chest level, 1.5+=above head
+    // T-pose bind has arms at ~90° (π/2). We need full π/2 offset to bring arms down.
     {
       if (bones.rightUpperArm && bones.rightUpperArm.parent) {
         const initQ = getInitQ("rightUpperArm");
@@ -244,8 +245,9 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
           const parentWorldQInv = parentWorldQ.clone().invert();
 
           // World-space Z axis rotation (arm raise/lower)
-          const armDownOffset = 1.0; // positive Z = arms down in world space
-          const totalAngle = armDownOffset - c.rightArmAngle;
+          // π/2 brings arms from T-pose fully down to sides
+          const armDownOffset = Math.PI / 2;
+          const totalAngle = armDownOffset - c.rightArmAngle * (Math.PI / 2);
 
           // Convert world Z rotation to parent-local space
           const worldRotation = new THREE.Quaternion().setFromAxisAngle(axisZ, totalAngle);
@@ -279,8 +281,8 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
           bones.leftUpperArm.parent.getWorldQuaternion(parentWorldQ);
           const parentWorldQInv = parentWorldQ.clone().invert();
 
-          const armDownOffset = -1.0;
-          const totalAngle = armDownOffset + c.leftArmAngle;
+          const armDownOffset = -Math.PI / 2;
+          const totalAngle = armDownOffset + c.leftArmAngle * (Math.PI / 2);
 
           const worldRotation = new THREE.Quaternion().setFromAxisAngle(axisZ, totalAngle);
           const localRotation = parentWorldQInv.clone().multiply(worldRotation).multiply(parentWorldQ);
