@@ -5,18 +5,21 @@ import * as THREE from "three";
 import { SkeletonUtils } from "three-stdlib";
 import { type AvatarPose, REST_POSE } from "@/lib/signLanguageData";
 
-const MODEL_URL = "/models/avatar.glb";
+const MODEL_URL = "/models/avatar_new.glb";
 
 function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t;
 }
-
 
 // Bone name mappings for ReadyPlayerMe / Mixamo-style skeletons
 const BONE_NAMES = {
   spine: ["Spine", "Spine1", "Spine2"],
   neck: "Neck",
   head: "Head",
+  // Shoulders (new)
+  rightShoulder: "RightShoulder",
+  leftShoulder: "LeftShoulder",
+  // Arms
   rightUpperArm: "RightArm",
   rightLowerArm: "RightForeArm",
   rightHand: "RightHand",
@@ -68,6 +71,8 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
       head: findBone(skeleton, BONE_NAMES.head),
       neck: findBone(skeleton, BONE_NAMES.neck),
       spine: BONE_NAMES.spine.map((n) => findBone(skeleton, n)),
+      rightShoulder: findBone(skeleton, BONE_NAMES.rightShoulder),
+      leftShoulder: findBone(skeleton, BONE_NAMES.leftShoulder),
       rightUpperArm: findBone(skeleton, BONE_NAMES.rightUpperArm),
       rightLowerArm: findBone(skeleton, BONE_NAMES.rightLowerArm),
       rightHand: findBone(skeleton, BONE_NAMES.rightHand),
@@ -127,6 +132,8 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
     };
     store("head", bones.head);
     store("neck", bones.neck);
+    store("rightShoulder", bones.rightShoulder);
+    store("leftShoulder", bones.leftShoulder);
     store("rightUpperArm", bones.rightUpperArm);
     store("rightLowerArm", bones.rightLowerArm);
     store("rightHand", bones.rightHand);
@@ -146,9 +153,10 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
   const axisX = useMemo(() => new THREE.Vector3(1, 0, 0), []);
   const axisY = useMemo(() => new THREE.Vector3(0, 1, 0), []);
   const axisZ = useMemo(() => new THREE.Vector3(0, 0, 1), []);
+
   useFrame((state, delta) => {
     if (!bones || !initialized.current) return;
-    const speed = 10;
+    const speed = 8; // Slightly slower for more natural feel
     const c = current.current;
 
     // Smooth interpolate all values
@@ -170,23 +178,26 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
     c.mouthOpen = lerp(c.mouthOpen, pose.mouthOpen, delta * speed);
     c.eyebrowRaise = lerp(c.eyebrowRaise, pose.eyebrowRaise, delta * speed);
 
-    // ── HEAD — small Euler offsets are fine for head ──
+    // ── HEAD — Euler offsets for head ──
     const headInit = getInit("head");
     if (bones.head && headInit) {
-      bones.head.rotation.x = headInit.x + c.headNod * 0.12;
-      bones.head.rotation.y = headInit.y + c.headTurn * 0.15;
-      bones.head.rotation.z = headInit.z + c.headTilt * 0.08;
+      bones.head.rotation.x = headInit.x + c.headNod * 0.15;
+      bones.head.rotation.y = headInit.y + c.headTurn * 0.2;
+      bones.head.rotation.z = headInit.z + c.headTilt * 0.1;
+    }
+
+    // ── NECK — subtle follow of head movement ──
+    const neckInit = getInit("neck");
+    if (bones.neck && neckInit) {
+      bones.neck.rotation.x = neckInit.x + c.headNod * 0.05;
+      bones.neck.rotation.y = neckInit.y + c.headTurn * 0.08;
     }
 
     // Helper: apply quaternion-based rotation offset in BONE-LOCAL space
-    // Using multiply (post-multiply) applies delta AFTER bind pose = local rotation
-    // premultiply was wrong — it applied in world space, causing the avatar to fly off
     const applyQuat = (bone: THREE.Bone | null, name: string, rx: number, ry: number, rz: number) => {
       const initQ = getInitQ(name);
       if (!bone || !initQ) return;
-      // Start from bind pose quaternion
       tempQ.copy(initQ);
-      // Apply local rotations via post-multiplication (bone-local space)
       if (Math.abs(rx) > 0.001) {
         deltaQ.setFromAxisAngle(axisX, rx);
         tempQ.multiply(deltaQ);
@@ -202,23 +213,32 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
       bone.quaternion.copy(tempQ);
     };
 
-    // ── RIGHT ARM — now with proper local-space rotations we can use real multipliers ──
-    const raiseR = Math.max(0, Math.min(c.rightArmAngle, 1.5)) * 0.6;
+    // ── SHOULDERS — natural shoulder lift when arms raise ──
+    const shoulderLiftR = Math.max(0, c.rightArmAngle - 0.5) * 0.25;
+    applyQuat(bones.rightShoulder, "rightShoulder",
+      0, 0, -shoulderLiftR);
+
+    const shoulderLiftL = Math.max(0, c.leftArmAngle - 0.5) * 0.25;
+    applyQuat(bones.leftShoulder, "leftShoulder",
+      0, 0, shoulderLiftL);
+
+    // ── RIGHT ARM — full range with proper bone-local rotations ──
+    const raiseR = Math.max(0, Math.min(c.rightArmAngle, 1.5)) * 0.7;
     applyQuat(bones.rightUpperArm, "rightUpperArm",
-      -c.rightArmForward * 0.5, -c.rightArmSpread * 0.3, -raiseR);
+      -c.rightArmForward * 0.6, -c.rightArmSpread * 0.4, -raiseR);
     applyQuat(bones.rightLowerArm, "rightLowerArm",
-      0, -c.rightForearmBend * 1.0, 0);
+      0, -c.rightForearmBend * 1.2, 0);
     applyQuat(bones.rightHand, "rightHand",
-      c.rightWristTilt * 0.4, 0, 0);
+      c.rightWristTilt * 0.5, 0, 0);
 
     // ── LEFT ARM ──
-    const raiseL = Math.max(0, Math.min(c.leftArmAngle, 1.5)) * 0.6;
+    const raiseL = Math.max(0, Math.min(c.leftArmAngle, 1.5)) * 0.7;
     applyQuat(bones.leftUpperArm, "leftUpperArm",
-      -c.leftArmForward * 0.5, c.leftArmSpread * 0.3, raiseL);
+      -c.leftArmForward * 0.6, c.leftArmSpread * 0.4, raiseL);
     applyQuat(bones.leftLowerArm, "leftLowerArm",
-      0, c.leftForearmBend * 1.0, 0);
+      0, c.leftForearmBend * 1.2, 0);
     applyQuat(bones.leftHand, "leftHand",
-      c.leftWristTilt * 0.4, 0, 0);
+      c.leftWristTilt * 0.5, 0, 0);
 
     // ── FINGERS — curl based on handPose ──
     const fingerCurl = c.rightHandPose * 1.2;
@@ -240,32 +260,40 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
     setFingerCurl(bones.leftPinky, -leftFingerCurl);
     setFingerCurl(bones.leftThumb, -leftFingerCurl * 0.7);
 
-    // ── FACIAL EXPRESSIONS via morph targets ──
+    // ── FACIAL EXPRESSIONS via morph targets (ARKit) ──
     if (morphMesh && morphMesh.morphTargetDictionary && morphMesh.morphTargetInfluences) {
       const dict = morphMesh.morphTargetDictionary;
       const influences = morphMesh.morphTargetInfluences;
 
-      if (dict["jawOpen"] !== undefined) {
-        influences[dict["jawOpen"]] = lerp(influences[dict["jawOpen"]], c.mouthOpen * 0.8, delta * speed);
-      }
-      if (dict["mouthOpen"] !== undefined) {
-        influences[dict["mouthOpen"]] = lerp(influences[dict["mouthOpen"]], c.mouthOpen * 0.6, delta * speed);
-      }
-      if (dict["browInnerUp"] !== undefined) {
-        influences[dict["browInnerUp"]] = lerp(influences[dict["browInnerUp"]], c.eyebrowRaise, delta * speed);
-      }
-      if (dict["browOuterUpLeft"] !== undefined) {
-        influences[dict["browOuterUpLeft"]] = lerp(influences[dict["browOuterUpLeft"]], c.eyebrowRaise * 0.5, delta * speed);
-      }
-      if (dict["browOuterUpRight"] !== undefined) {
-        influences[dict["browOuterUpRight"]] = lerp(influences[dict["browOuterUpRight"]], c.eyebrowRaise * 0.5, delta * speed);
-      }
+      const setMorph = (name: string, value: number) => {
+        if (dict[name] !== undefined) {
+          influences[dict[name]] = lerp(influences[dict[name]], value, delta * speed);
+        }
+      };
+
+      setMorph("jawOpen", c.mouthOpen * 0.8);
+      setMorph("mouthOpen", c.mouthOpen * 0.6);
+      setMorph("browInnerUp", c.eyebrowRaise);
+      setMorph("browOuterUpLeft", c.eyebrowRaise * 0.5);
+      setMorph("browOuterUpRight", c.eyebrowRaise * 0.5);
+      // Subtle smile when eyebrows are raised (more expressive)
+      setMorph("mouthSmileLeft", c.eyebrowRaise * 0.2);
+      setMorph("mouthSmileRight", c.eyebrowRaise * 0.2);
+      // Subtle eye widening when eyebrows raise
+      setMorph("eyeWideLeft", c.eyebrowRaise * 0.3);
+      setMorph("eyeWideRight", c.eyebrowRaise * 0.3);
     }
 
-    // Subtle breathing on spine
-    const spineInit = getInit("spine1");
-    if (bones.spine[1] && spineInit) {
-      bones.spine[1].rotation.x = spineInit.x + Math.sin(state.clock.elapsedTime * 0.8) * 0.008;
+    // ── SPINE — subtle lean toward signing direction + breathing ──
+    const spineInit0 = getInit("spine0");
+    if (bones.spine[0] && spineInit0) {
+      // Subtle torso lean when arms are active
+      const armActivity = Math.max(c.rightArmAngle, c.leftArmAngle) * 0.03;
+      bones.spine[0].rotation.x = spineInit0.x + armActivity;
+    }
+    const spineInit1 = getInit("spine1");
+    if (bones.spine[1] && spineInit1) {
+      bones.spine[1].rotation.x = spineInit1.x + Math.sin(state.clock.elapsedTime * 0.8) * 0.008;
     }
   });
 
