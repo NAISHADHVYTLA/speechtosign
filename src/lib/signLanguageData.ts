@@ -46,15 +46,16 @@ export interface AvatarPose {
 }
 
 const REST_POSE: AvatarPose = {
-  rightArmAngle: -0.1, rightArmForward: 0, rightArmSpread: 0,
-  rightForearmBend: 0.05, rightHandPose: 0.05, rightWristTilt: 0,
-  leftArmAngle: -0.1, leftArmForward: 0, leftArmSpread: 0,
-  leftForearmBend: 0.05, leftHandPose: 0.05, leftWristTilt: 0,
+  // 0 = arms at sides (natural idle), 1 = signing level, 1.5+ = above head
+  rightArmAngle: 0, rightArmForward: 0.05, rightArmSpread: 0,
+  rightForearmBend: 0.15, rightHandPose: 0.05, rightWristTilt: 0,
+  leftArmAngle: 0, leftArmForward: 0.05, leftArmSpread: 0,
+  leftForearmBend: 0.15, leftHandPose: 0.05, leftWristTilt: 0,
   headNod: 0, headTilt: 0, headTurn: 0,
   mouthOpen: 0, eyebrowRaise: 0,
-  rightThumbCurl: 0.05, rightIndexCurl: 0.05, rightMiddleCurl: 0.05, rightRingCurl: 0.08, rightPinkyCurl: 0.08,
+  rightThumbCurl: 0.1, rightIndexCurl: 0.1, rightMiddleCurl: 0.1, rightRingCurl: 0.12, rightPinkyCurl: 0.12,
   rightFingerSpread: 0.05,
-  leftThumbCurl: 0.05, leftIndexCurl: 0.05, leftMiddleCurl: 0.05, leftRingCurl: 0.08, leftPinkyCurl: 0.08,
+  leftThumbCurl: 0.1, leftIndexCurl: 0.1, leftMiddleCurl: 0.1, leftRingCurl: 0.12, leftPinkyCurl: 0.12,
   leftFingerSpread: 0.05,
 };
 

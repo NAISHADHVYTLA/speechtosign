@@ -97,19 +97,18 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
   const initialRotations = useRef<Map<string, THREE.Euler>>(new Map());
   const initialized = useRef(false);
 
-  // Smooth interpolation state — includes per-finger control
+  // Smooth interpolation state — matches REST_POSE for natural idle
   const current = useRef({
-    rightArmAngle: 0, rightArmForward: 0, rightArmSpread: 0,
-    rightForearmBend: 0.15, rightHandPose: 0.1, rightWristTilt: 0, rightWristRotate: 0,
-    leftArmAngle: 0, leftArmForward: 0, leftArmSpread: 0,
-    leftForearmBend: 0.15, leftHandPose: 0.1, leftWristTilt: 0, leftWristRotate: 0,
+    rightArmAngle: 0, rightArmForward: 0.05, rightArmSpread: 0,
+    rightForearmBend: 0.15, rightHandPose: 0.05, rightWristTilt: 0, rightWristRotate: 0,
+    leftArmAngle: 0, leftArmForward: 0.05, leftArmSpread: 0,
+    leftForearmBend: 0.15, leftHandPose: 0.05, leftWristTilt: 0, leftWristRotate: 0,
     headNod: 0, headTilt: 0, headTurn: 0,
     mouthOpen: 0, eyebrowRaise: 0,
-    // Per-finger curl (0=straight, 1=fully curled)
-    rightThumbCurl: 0.1, rightIndexCurl: 0.15, rightMiddleCurl: 0.15, rightRingCurl: 0.2, rightPinkyCurl: 0.2,
-    rightFingerSpread: 0.2,
-    leftThumbCurl: 0.1, leftIndexCurl: 0.15, leftMiddleCurl: 0.15, leftRingCurl: 0.2, leftPinkyCurl: 0.2,
-    leftFingerSpread: 0.2,
+    rightThumbCurl: 0.1, rightIndexCurl: 0.1, rightMiddleCurl: 0.1, rightRingCurl: 0.12, rightPinkyCurl: 0.12,
+    rightFingerSpread: 0.05,
+    leftThumbCurl: 0.1, leftIndexCurl: 0.1, leftMiddleCurl: 0.1, leftRingCurl: 0.12, leftPinkyCurl: 0.12,
+    leftFingerSpread: 0.05,
   });
 
   // Find morph target mesh for facial expressions
@@ -225,27 +224,80 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
       bone.quaternion.copy(tempQ);
     };
 
-    // ── SHOULDERS — natural lift when arms raise ──
-    const shoulderLiftR = Math.max(0, c.rightArmAngle - 0.4) * 0.35;
+    // ── SHOULDERS — natural lift when arms raise above neutral ──
+    const shoulderLiftR = Math.max(0, c.rightArmAngle - 0.6) * 0.3;
     applyQuat(bones.rightShoulder, "rightShoulder",
-      -c.rightArmForward * 0.1, 0, -shoulderLiftR);
-    const shoulderLiftL = Math.max(0, c.leftArmAngle - 0.4) * 0.35;
+      -c.rightArmForward * 0.08, 0, -shoulderLiftR);
+    const shoulderLiftL = Math.max(0, c.leftArmAngle - 0.6) * 0.3;
     applyQuat(bones.leftShoulder, "leftShoulder",
-      -c.leftArmForward * 0.1, 0, shoulderLiftL);
+      -c.leftArmForward * 0.08, 0, shoulderLiftL);
 
-    // ── RIGHT ARM ──
-    const raiseR = Math.max(0, Math.min(c.rightArmAngle, 1.8)) * 0.85;
-    applyQuat(bones.rightUpperArm, "rightUpperArm",
-      -c.rightArmForward * 0.7, -c.rightArmSpread * 0.5, -raiseR);
+    // ── ARMS — world-space rotation approach ──
+    // armAngle: 0=arms at sides, 1=signing/chest level, 1.5+=above head
+    {
+      if (bones.rightUpperArm && bones.rightUpperArm.parent) {
+        const initQ = getInitQ("rightUpperArm");
+        if (initQ) {
+          // Get parent's world quaternion to convert world-space rotation to local
+          const parentWorldQ = new THREE.Quaternion();
+          bones.rightUpperArm.parent.getWorldQuaternion(parentWorldQ);
+          const parentWorldQInv = parentWorldQ.clone().invert();
+
+          // World-space Z axis rotation (arm raise/lower)
+          const armDownOffset = 1.0; // positive Z = arms down in world space
+          const totalAngle = armDownOffset - c.rightArmAngle;
+
+          // Convert world Z rotation to parent-local space
+          const worldRotation = new THREE.Quaternion().setFromAxisAngle(axisZ, totalAngle);
+          const localRotation = parentWorldQInv.clone().multiply(worldRotation).multiply(parentWorldQ);
+
+          tempQ.copy(initQ);
+          tempQ.premultiply(localRotation);
+
+          // Forward movement (world X axis)
+          if (Math.abs(c.rightArmForward) > 0.001) {
+            const fwdWorld = new THREE.Quaternion().setFromAxisAngle(axisX, -c.rightArmForward * 0.8);
+            const fwdLocal = parentWorldQInv.clone().multiply(fwdWorld).multiply(parentWorldQ);
+            tempQ.premultiply(fwdLocal);
+          }
+
+          bones.rightUpperArm.quaternion.copy(tempQ);
+        }
+      }
+    }
     applyQuat(bones.rightLowerArm, "rightLowerArm",
       0, -c.rightForearmBend * 1.4, 0);
     applyQuat(bones.rightHand, "rightHand",
       c.rightWristTilt * 0.6, c.rightWristRotate * 0.8, 0);
 
-    // ── LEFT ARM ──
-    const raiseL = Math.max(0, Math.min(c.leftArmAngle, 1.8)) * 0.85;
-    applyQuat(bones.leftUpperArm, "leftUpperArm",
-      -c.leftArmForward * 0.7, c.leftArmSpread * 0.5, raiseL);
+    // ── LEFT ARM (mirrored) ──
+    {
+      if (bones.leftUpperArm && bones.leftUpperArm.parent) {
+        const initQ = getInitQ("leftUpperArm");
+        if (initQ) {
+          const parentWorldQ = new THREE.Quaternion();
+          bones.leftUpperArm.parent.getWorldQuaternion(parentWorldQ);
+          const parentWorldQInv = parentWorldQ.clone().invert();
+
+          const armDownOffset = -1.0;
+          const totalAngle = armDownOffset + c.leftArmAngle;
+
+          const worldRotation = new THREE.Quaternion().setFromAxisAngle(axisZ, totalAngle);
+          const localRotation = parentWorldQInv.clone().multiply(worldRotation).multiply(parentWorldQ);
+
+          tempQ.copy(initQ);
+          tempQ.premultiply(localRotation);
+
+          if (Math.abs(c.leftArmForward) > 0.001) {
+            const fwdWorld = new THREE.Quaternion().setFromAxisAngle(axisX, -c.leftArmForward * 0.8);
+            const fwdLocal = parentWorldQInv.clone().multiply(fwdWorld).multiply(parentWorldQ);
+            tempQ.premultiply(fwdLocal);
+          }
+
+          bones.leftUpperArm.quaternion.copy(tempQ);
+        }
+      }
+    }
     applyQuat(bones.leftLowerArm, "leftLowerArm",
       0, c.leftForearmBend * 1.4, 0);
     applyQuat(bones.leftHand, "leftHand",
@@ -325,7 +377,7 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
   });
 
   return (
-    <group ref={groupRef} position={[0, -1.0, 0]} scale={1} rotation={[0, Math.PI, 0]}>
+    <group ref={groupRef} position={[0, -0.95, 0]} scale={1}>
       <primitive object={clonedScene} />
     </group>
   );
@@ -343,24 +395,21 @@ export default function Avatar3D({ pose, label }: Avatar3DProps) {
   return (
     <div className="relative w-full h-full">
       <Canvas
-        camera={{ position: [0, 0.3, 3.8], fov: 38 }}
+        camera={{ position: [0, 0.15, 2.8], fov: 40 }}
         dpr={[1, 2]}
         gl={{ antialias: true, alpha: true }}
         style={{ background: "transparent" }}
       >
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[3, 5, 3]} intensity={1.2} castShadow />
-        <directionalLight position={[-3, 2, -2]} intensity={0.3} color="#88ccff" />
-        <pointLight position={[0, 3, 2]} intensity={0.3} color="#ffddaa" />
+        <ambientLight intensity={0.7} />
+        <directionalLight position={[2, 4, 4]} intensity={1.4} castShadow />
+        <directionalLight position={[-2, 3, 2]} intensity={0.4} color="#88ccff" />
+        <pointLight position={[0, 2, 3]} intensity={0.4} color="#ffddaa" />
         <AnimatedAvatar pose={activePose} />
         <OrbitControls
           enablePan={false}
           enableZoom={false}
           enableRotate={false}
-          minDistance={4}
-          maxDistance={6}
-          target={[0, 0.5, 0]}
-          autoRotate={false}
+          target={[0, 0.3, 0]}
         />
         <Environment preset="studio" />
       </Canvas>
