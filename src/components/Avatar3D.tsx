@@ -325,7 +325,7 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
   });
 
   return (
-    <group ref={groupRef} position={[0, -1.0, 0]} scale={1}>
+    <group ref={groupRef} position={[0, -1.0, 0]} scale={1} rotation={[0, Math.PI, 0]}>
       <primitive object={clonedScene} />
     </group>
   );
@@ -343,7 +343,7 @@ export default function Avatar3D({ pose, label }: Avatar3DProps) {
   return (
     <div className="relative w-full h-full">
       <Canvas
-        camera={{ position: [0, 0.2, 5], fov: 35 }}
+        camera={{ position: [0, 0.3, 3.8], fov: 38 }}
         dpr={[1, 2]}
         gl={{ antialias: true, alpha: true }}
         style={{ background: "transparent" }}
