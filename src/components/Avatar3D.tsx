@@ -300,90 +300,61 @@ const AnimatedAvatarInner = forwardRef<AvatarHandle, AnimatedAvatarProps>(
         bones.neck.rotation.y = neckInit.y + c.headTurn * 0.08;
       }
 
-      // Helper: quaternion-based rotation in bone-local space
-      const applyQuat = (bone: THREE.Bone | null, name: string, rx: number, ry: number, rz: number) => {
-        const initQ = getInitQ(name);
-        if (!bone || !initQ) return;
-        tempQ.copy(initQ);
-        if (Math.abs(rx) > 0.001) { deltaQ.setFromAxisAngle(axisX, rx); tempQ.multiply(deltaQ); }
-        if (Math.abs(ry) > 0.001) { deltaQ.setFromAxisAngle(axisY, ry); tempQ.multiply(deltaQ); }
-        if (Math.abs(rz) > 0.001) { deltaQ.setFromAxisAngle(axisZ, rz); tempQ.multiply(deltaQ); }
-        bone.quaternion.copy(tempQ);
+      // Helper: apply euler offsets from bind-pose
+      const applyEuler = (bone: THREE.Bone | null, name: string, rx: number, ry: number, rz: number) => {
+        const init = getInit(name);
+        if (!bone || !init) return;
+        bone.rotation.set(init.x + rx, init.y + ry, init.z + rz);
       };
 
       // ── SHOULDERS ──
       const shoulderLiftR = Math.max(0, c.rightArmAngle - 0.6) * 0.3;
-      applyQuat(bones.rightShoulder, "rightShoulder",
+      applyEuler(bones.rightShoulder, "rightShoulder",
         -c.rightArmForward * 0.08, 0, -shoulderLiftR);
       const shoulderLiftL = Math.max(0, c.leftArmAngle - 0.6) * 0.3;
-      applyQuat(bones.leftShoulder, "leftShoulder",
+      applyEuler(bones.leftShoulder, "leftShoulder",
         -c.leftArmForward * 0.08, 0, shoulderLiftL);
 
       // ── RIGHT UPPER ARM ──
-      // Direct bone-local rotation from T-pose bind
-      // In Mixamo/RPM rigs, rotating the upper arm around local Z brings it down
+      // armAngle: 0 = arms fully down at sides, 1 = horizontal (T-pose level)
+      // In Mixamo, right arm in T-pose points along -X. Rotating +Z brings it down toward -Y.
       {
-        const initQ = getInitQ("rightUpperArm");
-        if (bones.rightUpperArm && initQ) {
-          // armAngle 0 = arms fully down, 1 = horizontal (T-pose level)
-          // We rotate by +(π/2) to bring from T-pose down, then subtract for raising
+        const init = getInit("rightUpperArm");
+        if (bones.rightUpperArm && init) {
           const downAngle = (Math.PI / 2) * (1 - c.rightArmAngle);
-
-          tempQ.copy(initQ);
-          // Rotate around local Z to bring arm down
-          deltaQ.setFromAxisAngle(axisZ, downAngle);
-          tempQ.multiply(deltaQ);
-
-          // Slight elbow bend when arms are down (natural pose)
+          const forwardAngle = -c.rightArmForward * 0.8;
           const naturalBend = (1 - c.rightArmAngle) * 0.15;
-          if (naturalBend > 0.001) {
-            deltaQ.setFromAxisAngle(axisY, -naturalBend);
-            tempQ.multiply(deltaQ);
-          }
-
-          // Forward movement
-          if (Math.abs(c.rightArmForward) > 0.01) {
-            deltaQ.setFromAxisAngle(axisX, -c.rightArmForward * 0.8);
-            tempQ.multiply(deltaQ);
-          }
-
-          bones.rightUpperArm.quaternion.copy(tempQ);
+          bones.rightUpperArm.rotation.set(
+            init.x + forwardAngle,
+            init.y - naturalBend,
+            init.z + downAngle
+          );
         }
       }
 
-      applyQuat(bones.rightLowerArm, "rightLowerArm",
+      applyEuler(bones.rightLowerArm, "rightLowerArm",
         0, -c.rightForearmBend * 1.4, 0);
-      applyQuat(bones.rightHand, "rightHand",
+      applyEuler(bones.rightHand, "rightHand",
         c.rightWristTilt * 0.6, c.rightWristRotate * 0.8, 0);
 
       // ── LEFT UPPER ARM (mirrored) ──
       {
-        const initQ = getInitQ("leftUpperArm");
-        if (bones.leftUpperArm && initQ) {
+        const init = getInit("leftUpperArm");
+        if (bones.leftUpperArm && init) {
           const downAngle = -(Math.PI / 2) * (1 - c.leftArmAngle);
-
-          tempQ.copy(initQ);
-          deltaQ.setFromAxisAngle(axisZ, downAngle);
-          tempQ.multiply(deltaQ);
-
+          const forwardAngle = -c.leftArmForward * 0.8;
           const naturalBend = (1 - c.leftArmAngle) * 0.15;
-          if (naturalBend > 0.001) {
-            deltaQ.setFromAxisAngle(axisY, naturalBend);
-            tempQ.multiply(deltaQ);
-          }
-
-          if (Math.abs(c.leftArmForward) > 0.01) {
-            deltaQ.setFromAxisAngle(axisX, -c.leftArmForward * 0.8);
-            tempQ.multiply(deltaQ);
-          }
-
-          bones.leftUpperArm.quaternion.copy(tempQ);
+          bones.leftUpperArm.rotation.set(
+            init.x + forwardAngle,
+            init.y + naturalBend,
+            init.z + downAngle
+          );
         }
       }
 
-      applyQuat(bones.leftLowerArm, "leftLowerArm",
+      applyEuler(bones.leftLowerArm, "leftLowerArm",
         0, c.leftForearmBend * 1.4, 0);
-      applyQuat(bones.leftHand, "leftHand",
+      applyEuler(bones.leftHand, "leftHand",
         c.leftWristTilt * 0.6, c.leftWristRotate * 0.8, 0);
 
       // ── FINGERS ──
