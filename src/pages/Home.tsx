@@ -22,7 +22,7 @@ export default function Home() {
           </h1>
           <div className="w-16 h-1 bg-orange-500 mx-auto mb-6 rounded-full" />
           <p className="text-lg md:text-xl text-white/70 leading-relaxed mb-10 max-w-2xl mx-auto">
-            The complete toolkit for Indian Sign Language. Explore our range of features which have been carefully designed keeping in mind the specific needs of people related to ISL.
+            The complete toolkit for American Sign Language. Explore our range of features which have been carefully designed keeping in mind the specific needs of the deaf and hard of hearing community.
           </p>
           <a
             href="#services"
@@ -48,7 +48,7 @@ export default function Home() {
             </h2>
             <div className="w-12 h-1 bg-primary mx-auto mb-6 rounded-full" />
             <p className="text-muted-foreground text-lg leading-relaxed max-w-2xl mx-auto">
-              A comprehensive and aesthetic Indian Sign Language toolkit. A minimalist yet informative interface with a wide range of features for working with ISL.
+              A comprehensive and aesthetic American Sign Language toolkit. A minimalist yet informative interface with a wide range of features for working with ASL.
             </p>
           </motion.div>
         </div>
@@ -86,7 +86,7 @@ export default function Home() {
               </div>
               <h3 className="font-display text-xl font-bold text-foreground mb-3">Convert</h3>
               <p className="text-muted-foreground text-sm leading-relaxed mb-6">
-                Convert audio or text into Indian Sign Language. Speak into your mic or type the text and watch the 3D avatar perform ISL signs in real-time!
+                Convert audio or text into American Sign Language. Speak into your mic or type the text and watch the 3D avatar perform ASL signs in real-time!
               </p>
               <Link
                 to="/convert"
@@ -109,7 +109,7 @@ export default function Home() {
               </div>
               <h3 className="font-display text-xl font-bold text-foreground mb-3">Learn Sign</h3>
               <p className="text-muted-foreground text-sm leading-relaxed mb-6">
-                Curious about Indian Sign Language? Select a sign from the list, watch the 3D avatar demonstrate it, and learn ISL at your own pace!
+                Curious about American Sign Language? Select a sign from the list, watch the 3D avatar demonstrate it, and learn ASL at your own pace!
               </p>
               <Link
                 to="/learn-sign"
@@ -132,7 +132,7 @@ export default function Home() {
               </div>
               <h3 className="font-display text-xl font-bold text-foreground mb-3">Videos</h3>
               <p className="text-muted-foreground text-sm leading-relaxed mb-6">
-                Create wonderful videos using Indian Sign Language. Upload your transcript or type your text and the system will automatically create a video using ISL!
+                Create wonderful videos using American Sign Language. Upload your transcript or type your text and the system will automatically create a video using ASL!
               </p>
               <button
                 className="mt-auto px-6 py-2.5 bg-secondary text-secondary-foreground font-semibold text-sm rounded-lg cursor-default opacity-60"
@@ -148,7 +148,7 @@ export default function Home() {
       <footer className="py-8 px-6 border-t border-border/30">
         <div className="max-w-6xl mx-auto text-center">
           <p className="text-muted-foreground text-sm">
-            © {new Date().getFullYear()} Sign Kit — Indian Sign Language Toolkit
+            © {new Date().getFullYear()} Sign Kit — American Sign Language Toolkit
           </p>
         </div>
       </footer>
