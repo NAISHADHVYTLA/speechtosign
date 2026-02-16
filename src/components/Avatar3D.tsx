@@ -156,7 +156,7 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
 
   useFrame((state, delta) => {
     if (!bones || !initialized.current) return;
-    const speed = 8; // Slightly slower for more natural feel
+    const speed = 7; // Natural human-like transition speed
     const c = current.current;
 
     // Smooth interpolate all values
@@ -214,31 +214,31 @@ function AnimatedAvatar({ pose }: AnimatedAvatarProps) {
     };
 
     // ── SHOULDERS — natural shoulder lift when arms raise ──
-    const shoulderLiftR = Math.max(0, c.rightArmAngle - 0.5) * 0.25;
+    const shoulderLiftR = Math.max(0, c.rightArmAngle - 0.4) * 0.35;
     applyQuat(bones.rightShoulder, "rightShoulder",
-      0, 0, -shoulderLiftR);
+      -c.rightArmForward * 0.1, 0, -shoulderLiftR);
 
-    const shoulderLiftL = Math.max(0, c.leftArmAngle - 0.5) * 0.25;
+    const shoulderLiftL = Math.max(0, c.leftArmAngle - 0.4) * 0.35;
     applyQuat(bones.leftShoulder, "leftShoulder",
-      0, 0, shoulderLiftL);
+      -c.leftArmForward * 0.1, 0, shoulderLiftL);
 
-    // ── RIGHT ARM — full range with proper bone-local rotations ──
-    const raiseR = Math.max(0, Math.min(c.rightArmAngle, 1.5)) * 0.7;
+    // ── RIGHT ARM — full realistic range for ISL signs ──
+    const raiseR = Math.max(0, Math.min(c.rightArmAngle, 1.8)) * 0.85;
     applyQuat(bones.rightUpperArm, "rightUpperArm",
-      -c.rightArmForward * 0.6, -c.rightArmSpread * 0.4, -raiseR);
+      -c.rightArmForward * 0.7, -c.rightArmSpread * 0.5, -raiseR);
     applyQuat(bones.rightLowerArm, "rightLowerArm",
-      0, -c.rightForearmBend * 1.2, 0);
+      0, -c.rightForearmBend * 1.4, 0);
     applyQuat(bones.rightHand, "rightHand",
-      c.rightWristTilt * 0.5, 0, 0);
+      c.rightWristTilt * 0.6, 0, 0);
 
     // ── LEFT ARM ──
-    const raiseL = Math.max(0, Math.min(c.leftArmAngle, 1.5)) * 0.7;
+    const raiseL = Math.max(0, Math.min(c.leftArmAngle, 1.8)) * 0.85;
     applyQuat(bones.leftUpperArm, "leftUpperArm",
-      -c.leftArmForward * 0.6, c.leftArmSpread * 0.4, raiseL);
+      -c.leftArmForward * 0.7, c.leftArmSpread * 0.5, raiseL);
     applyQuat(bones.leftLowerArm, "leftLowerArm",
-      0, c.leftForearmBend * 1.2, 0);
+      0, c.leftForearmBend * 1.4, 0);
     applyQuat(bones.leftHand, "leftHand",
-      c.leftWristTilt * 0.5, 0, 0);
+      c.leftWristTilt * 0.6, 0, 0);
 
     // ── FINGERS — curl based on handPose ──
     const fingerCurl = c.rightHandPose * 1.2;
