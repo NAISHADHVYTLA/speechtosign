@@ -77,7 +77,7 @@ export default function Index() {
         <div className="flex items-center gap-2">
           <Accessibility className="w-5 h-5 text-primary" />
           <h1 className="font-display font-bold text-foreground text-lg">SignSpeak</h1>
-          <span className="text-xs text-muted-foreground hidden sm:inline">Speech & Text → Sign Language</span>
+          <span className="text-xs text-muted-foreground hidden sm:inline">Speech & Text → Indian Sign Language (ISL)</span>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -113,7 +113,7 @@ export default function Index() {
               <strong className="text-foreground">⌨️ For deaf & mute users:</strong> Type words or sentences in the text box — the 3D avatar will show each sign.
             </p>
             <p>
-              <strong className="text-foreground">📚 40+ words supported:</strong> hello, thank you, yes, no, please, help, love, happy, sad, want, need, think, know, understand, family, morning, tomorrow, and more. Other words are finger-spelled.
+              <strong className="text-foreground">📚 80+ ISL words supported:</strong> namaste, dhanyavaad, haan, nahin, kripya, madad, pyaar, khush, dukhi, numbers 1-10, colors (laal, neela, hara, peela), emotions, family (maa, pita, dost), and more. Other words are finger-spelled.
             </p>
           </div>
         </motion.div>
